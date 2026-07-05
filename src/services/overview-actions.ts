@@ -1,8 +1,19 @@
 "use server";
 
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function getProjectOverview(projectId: string) {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  if (session.user.role !== "ADMIN") {
+    const membership = await prisma.projectMember.findFirst({
+      where: { projectId, userId: session.user.id },
+    });
+    if (!membership) return null;
+  }
+
   const [project, taskStats, sprintStats, recentActivity] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
@@ -80,6 +91,78 @@ export async function getProjectOverview(projectId: string) {
 }
 
 export async function getTeamWorkload() {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  if (session.user.role !== "ADMIN") {
+    const userProjects = await prisma.projectMember.findMany({
+      where: { userId: session.user.id },
+      select: { projectId: true },
+    });
+    const projectIds = userProjects.map((p) => p.projectId);
+
+    const users = await prisma.user.findMany({
+      where: { projectMemberships: { some: { projectId: { in: projectIds } } } },
+      include: {
+        assignedTasks: {
+          where: { status: { notIn: ["DONE"] }, projectId: { in: projectIds } },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            priority: true,
+            dueDate: true,
+            project: { select: { name: true, key: true } },
+          },
+        },
+        projectMemberships: {
+          where: { projectId: { in: projectIds } },
+          include: { project: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const completedThisWeek = await prisma.task.groupBy({
+      by: ["assigneeId"],
+      where: {
+        status: "DONE",
+        updatedAt: { gte: weekAgo },
+        assigneeId: { not: null },
+        projectId: { in: projectIds },
+      },
+      _count: true,
+    });
+
+    const completedMap: Record<string, number> = {};
+    for (const c of completedThisWeek) {
+      if (c.assigneeId) completedMap[c.assigneeId] = c._count;
+    }
+
+    return users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      activeTasks: user.assignedTasks,
+      activeTaskCount: user.assignedTasks.length,
+      completedThisWeek: completedMap[user.id] ?? 0,
+      projects: user.projectMemberships.map((pm) => pm.project),
+      tasksByPriority: {
+        CRITICAL: user.assignedTasks.filter((t) => t.priority === "CRITICAL").length,
+        HIGH: user.assignedTasks.filter((t) => t.priority === "HIGH").length,
+        MEDIUM: user.assignedTasks.filter((t) => t.priority === "MEDIUM").length,
+        LOW: user.assignedTasks.filter((t) => t.priority === "LOW").length,
+      },
+      overdueTasks: user.assignedTasks.filter(
+        (t) => t.dueDate && new Date(t.dueDate) < new Date()
+      ).length,
+    }));
+  }
+
   const users = await prisma.user.findMany({
     include: {
       assignedTasks: {

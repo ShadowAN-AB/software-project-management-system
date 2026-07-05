@@ -10,6 +10,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { SprintActions } from "@/components/features/sprint-actions";
 import { BurndownChart } from "@/components/features/burndown-chart";
+import { ExportCsvButton } from "@/components/features/export-csv-button";
 
 export default async function SprintDetailPage({
   params,
@@ -61,9 +62,12 @@ export default async function SprintDetailPage({
             </div>
           )}
         </div>
-        {canManage && (
-          <SprintActions sprintId={sprint.id} currentStatus={sprint.status} />
-        )}
+        <div className="flex items-center gap-2">
+          <ExportCsvButton sprintId={sprint.id} label="Export Sprint" />
+          {canManage && (
+            <SprintActions sprintId={sprint.id} currentStatus={sprint.status} />
+          )}
+        </div>
       </div>
 
       <Card>

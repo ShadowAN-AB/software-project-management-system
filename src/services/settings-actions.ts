@@ -33,15 +33,17 @@ export async function updateProfile(data: {
   if (!data.name?.trim()) return { success: false, error: "Name is required" };
   if (!data.email?.trim()) return { success: false, error: "Email is required" };
 
-  // Check if email is taken by another user
+  const normalizedEmail = data.email.trim().toLowerCase();
+
+  // Check if email is taken by another user (case-insensitive)
   const existing = await prisma.user.findFirst({
-    where: { email: data.email, NOT: { id: session.user.id } },
+    where: { email: { equals: normalizedEmail, mode: "insensitive" }, NOT: { id: session.user.id } },
   });
   if (existing) return { success: false, error: "Email already in use" };
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { name: data.name.trim(), email: data.email.trim().toLowerCase() },
+    data: { name: data.name.trim(), email: normalizedEmail },
   });
 
   revalidatePath("/", "layout");

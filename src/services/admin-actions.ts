@@ -83,16 +83,21 @@ export async function bootstrapAdmin(): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Not authenticated" };
 
-  // Only works when zero admins exist in the system
-  const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
-  if (adminCount > 0) {
+  // Atomic check-and-promote: only succeeds when zero admins exist
+  const result = await prisma.$transaction(async (tx) => {
+    const adminCount = await tx.user.count({ where: { role: "ADMIN" } });
+    if (adminCount > 0) return false;
+
+    await tx.user.update({
+      where: { id: session.user.id },
+      data: { role: "ADMIN" },
+    });
+    return true;
+  });
+
+  if (!result) {
     return { success: false, error: "An admin already exists. Contact them for role changes." };
   }
-
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { role: "ADMIN" },
-  });
 
   revalidatePath("/admin");
   revalidatePath("/dashboard");
@@ -110,25 +115,12 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     return { success: false, error: "Cannot delete your own account" };
   }
 
-  // Check if user has assignments
-  const taskCount = await prisma.task.count({
-    where: { assigneeId: userId },
-  });
-
-  if (taskCount > 0) {
-    // Unassign tasks first
-    await prisma.task.updateMany({
-      where: { assigneeId: userId },
-      data: { assigneeId: null },
-    });
-  }
-
-  // Remove memberships, then comments, then activity logs, then user
   await prisma.$transaction([
+    prisma.task.updateMany({ where: { assigneeId: userId }, data: { assigneeId: null } }),
+    prisma.task.updateMany({ where: { creatorId: userId }, data: { creatorId: null } }),
     prisma.projectMember.deleteMany({ where: { userId } }),
     prisma.comment.deleteMany({ where: { userId } }),
     prisma.activityLog.deleteMany({ where: { userId } }),
-    prisma.task.updateMany({ where: { creatorId: userId }, data: { creatorId: null } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
 

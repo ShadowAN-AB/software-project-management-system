@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember } from "@/lib/authorization";
 import { projectSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -34,6 +35,12 @@ export async function getProjects() {
 }
 
 export async function getProject(id: string) {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  const isMember = await requireProjectMember(id, session.user.id, session.user.role);
+  if (!isMember) return null;
+
   return prisma.project.findUnique({
     where: { id },
     include: {
@@ -114,6 +121,13 @@ export async function updateProjectStatus(projectId: string, status: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Only admins and PMs can change project status" };
+  }
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
   await prisma.project.update({
     where: { id: projectId },
     data: { status: status as "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "ARCHIVED" },
@@ -131,6 +145,13 @@ export async function addProjectMember(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Only admins and PMs can manage members" };
+  }
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "You are not a member of this project" };
 
   await prisma.projectMember.create({
     data: {
@@ -154,6 +175,13 @@ export async function getAllUsers() {
 export async function removeProjectMember(projectId: string, memberId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Only admins and PMs can manage members" };
+  }
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "You are not a member of this project" };
 
   await prisma.projectMember.delete({ where: { id: memberId } });
   revalidatePath(`/projects/${projectId}`);

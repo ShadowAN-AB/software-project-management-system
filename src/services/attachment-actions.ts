@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 
@@ -13,6 +14,11 @@ export async function uploadAttachment(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const projectId = await getTaskProjectId(taskId);
+  if (!projectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const file = formData.get("file") as File;
   if (!file) return { success: false, error: "No file provided" };
@@ -51,7 +57,8 @@ export async function deleteAttachment(attachmentId: string): Promise<ActionResu
 
   if (!attachment) return { success: false, error: "Attachment not found" };
 
-  // Only uploader, admin, or PM can delete
+  const isMember = await requireProjectMember(attachment.task.projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
   const canDelete =
     attachment.uploadedBy === session.user.id ||
     ["ADMIN", "PROJECT_MANAGER"].includes(session.user.role);
@@ -67,6 +74,15 @@ export async function deleteAttachment(attachmentId: string): Promise<ActionResu
 }
 
 export async function getAttachments(taskId: string) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const projectId = await getTaskProjectId(taskId);
+  if (!projectId) return [];
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   return prisma.attachment.findMany({
     where: { taskId },
     select: {

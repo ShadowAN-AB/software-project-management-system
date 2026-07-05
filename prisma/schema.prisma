@@ -136,6 +136,7 @@ model Task {
   timeEntries  TimeEntry[]
   blockedBy    TaskDependency[] @relation("BlockedTask")
   blocks       TaskDependency[] @relation("BlockerTask")
+  subtasks     Subtask[]
 
   @@index([projectId, status])
   @@index([assigneeId])
@@ -203,6 +204,8 @@ enum NotificationType {
   PROJECT_ADDED
   SPRINT_STARTED
   MENTIONED
+  TASK_OVERDUE
+  TASK_DUE_SOON
 }
 
 model Notification {
@@ -298,6 +301,20 @@ model TaskDependency {
   @@index([blockedTaskId])
   @@index([blockerTaskId])
   @@map("task_dependencies")
+}
+
+model Subtask {
+  id        String   @id @default(cuid())
+  title     String
+  completed Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("subtasks")
 }
 
 model TimeEntry {

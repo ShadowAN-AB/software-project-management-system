@@ -15,6 +15,8 @@ import { TaskDependencies } from "@/components/features/task-dependencies";
 import { getTaskDependencies } from "@/services/dependency-actions";
 import { TaskTimeTracking } from "@/components/features/task-time-tracking";
 import { getTimeEntries } from "@/services/time-tracking-actions";
+import { TaskChecklist } from "@/components/features/task-checklist";
+import { getSubtasks } from "@/services/subtask-actions";
 import { getTasksByProject } from "@/services/task-actions";
 
 export default async function TaskDetailPage({
@@ -31,7 +33,7 @@ export default async function TaskDetailPage({
 
   if (!task) notFound();
 
-  const [sprints, attachments, taskLabels, projectLabels, dependencies, timeEntries, projectTasks] =
+  const [sprints, attachments, taskLabels, projectLabels, dependencies, timeEntries, subtasks, projectTasks] =
     await Promise.all([
       getSprintsByProject(task.projectId),
       getAttachments(id),
@@ -39,6 +41,7 @@ export default async function TaskDetailPage({
       getProjectLabels(task.projectId),
       getTaskDependencies(id),
       getTimeEntries(id),
+      getSubtasks(id),
       getTasksByProject(task.projectId),
     ]);
 
@@ -66,6 +69,8 @@ export default async function TaskDetailPage({
         currentUserId={session?.user?.id ?? ""}
         currentUserRole={session?.user?.role ?? "DEVELOPER"}
       />
+
+      <TaskChecklist taskId={task.id} subtasks={subtasks} />
 
       <TaskDependencies
         taskId={task.id}

@@ -9,6 +9,7 @@ import { KanbanBoard } from "@/components/features/kanban-board";
 import { CreateTaskForm } from "@/components/features/create-task-form";
 import { ProjectOverview } from "@/components/features/project-overview";
 import { TeamManagement } from "@/components/features/team-management";
+import { ExportCsvButton } from "@/components/features/export-csv-button";
 
 export default async function ProjectDetailPage({
   params,
@@ -50,15 +51,18 @@ export default async function ProjectDetailPage({
             </p>
           )}
         </div>
-        {canManage && (
-          <Link
-            href={`/sprints/new?projectId=${project.id}`}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <Timer className="h-4 w-4" />
-            New Sprint
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          <ExportCsvButton projectId={project.id} label="Export Tasks" />
+          {canManage && (
+            <Link
+              href={`/sprints/new?projectId=${project.id}`}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              <Timer className="h-4 w-4" />
+              New Sprint
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Project Overview */}

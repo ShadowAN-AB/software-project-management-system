@@ -1,5 +1,6 @@
 import { getDashboardStats } from "@/services/dashboard-actions";
 import { getAdminCount } from "@/services/admin-actions";
+import { checkDueDateReminders } from "@/services/due-date-reminder-actions";
 import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -21,6 +22,9 @@ export default async function DashboardPage() {
     getDashboardStats(),
     getAdminCount(),
   ]);
+
+  // Fire-and-forget: check for overdue/due-soon tasks and send notifications
+  checkDueDateReminders().catch(() => {});
 
   if (!stats) return null;
 

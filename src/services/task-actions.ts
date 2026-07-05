@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
 import { taskSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
@@ -11,6 +12,12 @@ import { eventBus } from "@/lib/event-bus";
 import type { SSEFrame } from "@/lib/sse-events";
 
 export async function getTasksByProject(projectId: string) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   return prisma.task.findMany({
     where: { projectId },
     include: {
@@ -25,7 +32,10 @@ export async function getTasksByProject(projectId: string) {
 }
 
 export async function getTask(id: string) {
-  return prisma.task.findUnique({
+  const session = await auth();
+  if (!session?.user) return null;
+
+  const task = await prisma.task.findUnique({
     where: { id },
     include: {
       assignee: true,
@@ -43,6 +53,13 @@ export async function getTask(id: string) {
       labels: { include: { label: true } },
     },
   });
+
+  if (!task) return null;
+
+  const isMember = await requireProjectMember(task.projectId, session.user.id, session.user.role);
+  if (!isMember) return null;
+
+  return task;
 }
 
 export async function createTask(
@@ -51,6 +68,12 @@ export async function createTask(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const projectId = formData.get("projectId") as string;
+  if (projectId) {
+    const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+    if (!isMember) return { success: false, error: "Not a member of this project" };
+  }
 
   const parsed = taskSchema.safeParse({
     title: formData.get("title"),
@@ -134,6 +157,11 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
+  const taskProjectId = await getTaskProjectId(taskId);
+  if (!taskProjectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
   const previousTask = await prisma.task.findUnique({
     where: { id: taskId },
     select: { status: true },
@@ -196,6 +224,11 @@ export async function updateTask(
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
+  const taskProjectId = await getTaskProjectId(taskId);
+  if (!taskProjectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
   const task = await prisma.task.update({
     where: { id: taskId },
     data: {
@@ -225,6 +258,11 @@ export async function deleteTask(taskId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
+  const taskProjectId = await getTaskProjectId(taskId);
+  if (!taskProjectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
   const task = await prisma.task.delete({ where: { id: taskId } });
 
   eventBus.emit(`project:${task.projectId}`, {
@@ -248,6 +286,11 @@ export async function addComment(
   const content = formData.get("content") as string;
 
   if (!content?.trim()) return { success: false, error: "Comment cannot be empty" };
+
+  const commentProjectId = await getTaskProjectId(taskId);
+  if (!commentProjectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(commentProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const comment = await prisma.comment.create({
     data: { content, taskId, userId: session.user.id },

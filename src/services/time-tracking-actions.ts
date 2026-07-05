@@ -2,9 +2,19 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 
 export async function getTimeEntries(taskId: string) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const projectId = await getTaskProjectId(taskId);
+  if (!projectId) return [];
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   return prisma.timeEntry.findMany({
     where: { taskId },
     include: { user: { select: { id: true, name: true } } },
@@ -20,6 +30,11 @@ export async function logTime(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const projectId = await getTaskProjectId(taskId);
+  if (!projectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (minutes <= 0 || minutes > 1440) {
     return { success: false, error: "Minutes must be between 1 and 1440" };
@@ -69,6 +84,15 @@ export async function deleteTimeEntry(entryId: string) {
 }
 
 export async function getSprintTimeEntries(sprintId: string) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const sprintProjectId = await getSprintProjectId(sprintId);
+  if (!sprintProjectId) return [];
+
+  const isMember = await requireProjectMember(sprintProjectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   const sprint = await prisma.sprint.findUnique({
     where: { id: sprintId },
     include: { tasks: { select: { id: true } } },

@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev              # Start dev server (Turbopack, port 3000)
 npm run build            # Production build
 npm run lint             # ESLint
+npm run test             # Run tests (vitest run)
+npm run test:watch       # Watch mode (vitest)
 
 # Database (Prisma + PostgreSQL via Neon)
 npm run db:push          # Sync schema.prisma → DB (preferred over migrate for Neon)
@@ -26,11 +28,12 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 - `src/app/(auth)/` — Login/register pages (no sidebar)
 - `src/app/(dashboard)/` — All authenticated pages (shared layout with sidebar + notification bell)
-- `src/app/api/` — 4 API routes: NextAuth handler, attachment download, invite validation, SSE event stream
+- `src/app/api/` — 6 API routes: NextAuth handler, attachment download, invite validation, SSE event stream, cron due-date reminders, CSV export
 - `src/components/ui/` — Reusable primitives (Button, Card, Input, Badge) — all custom, no component library
-- `src/components/features/` — Domain-specific client components (KanbanBoard, TaskDetail, Sidebar, etc.)
-- `src/services/` — Server actions ("use server") for all mutations and data fetching. 16 action modules.
+- `src/components/features/` — Domain-specific client components (KanbanBoard, TaskDetail, TaskChecklist, Sidebar, etc.)
+- `src/services/` — Server actions ("use server") for all mutations and data fetching. 20 action modules.
 - `src/lib/auth.ts` — NextAuth config with Credentials provider and JWT callbacks
+- `src/lib/authorization.ts` — Shared auth helpers: `requireAuth()`, `requireProjectMember()`, `getTaskProjectId()`, `getSprintProjectId()`
 - `src/lib/validations.ts` — Zod schemas for all form inputs
 - `src/types/index.ts` — NextAuth module augmentation + `ActionResult<T>` type
 
@@ -38,9 +41,11 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 ## Key Patterns
 
-**Server Actions, not REST.** All mutations go through server actions in `src/services/`. No REST API except file downloads. Forms use React 19 `useActionState`.
+**Server Actions, not REST.** All mutations go through server actions in `src/services/`. REST API routes are only for file downloads, CSV export, SSE, and cron. Forms use React 19 `useActionState`.
 
 **ActionResult<T>** — Every mutation returns `{ success: true, data: T } | { success: false, error: string }`.
+
+**Authorization.** Every server action calls `requireAuth()` and then `requireProjectMember(projectId, userId, role)` from `src/lib/authorization.ts`. ADMIN role bypasses project membership checks. Never add a new server action without these guards.
 
 **NEXT_REDIRECT is an error.** `redirect()` throws a `NEXT_REDIRECT` error. Server actions that call `redirect()` must re-throw it — never swallow it in a try/catch. This has caused bugs before.
 
@@ -52,9 +57,18 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 **Invite-only registration.** Public signup is disabled. First user auto-promotes to ADMIN. Subsequent users need an invite token (32-byte hex, 7-day expiry).
 
+## Testing
+
+Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`.
+
+- Tests live in `src/__tests__/*.test.ts`
+- Setup file (`src/__tests__/setup.ts`) mocks `next/cache` and `next/navigation` (redirect throws `NEXT_REDIRECT` like real Next.js)
+- Each test file mocks `@/lib/prisma` and `@/lib/auth` with `vi.mock()`
+- Run a single test file: `npx vitest run src/__tests__/auth-actions.test.ts`
+
 ## Database
 
-13 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Neon (free tier).
+14 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Neon (free tier).
 
 Use `prisma db push` instead of `prisma migrate dev` — Neon has advisory lock issues with migrations.
 
@@ -78,6 +92,10 @@ The app uses Server-Sent Events for live updates across browser sessions. Zero e
 **Adding a new real-time event**: Define the type in `sse-events.ts`, emit it in the server action via `eventBus.emit()`, handle it in the component via `useEventStream({ handlers })`.
 
 **Key invariant**: Server actions still call `revalidatePath()` for the acting user. SSE provides updates to *other* users. The `_actorId` field prevents double-application.
+
+## Due-Date Reminders
+
+`src/services/due-date-reminder-actions.ts` checks for overdue and due-soon tasks, sends notifications with 24h deduplication. Triggered two ways: fire-and-forget from the dashboard page load, and via `GET /api/cron/due-reminders` (protected by optional `CRON_SECRET` env var).
 
 ## Style
 

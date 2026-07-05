@@ -1,6 +1,8 @@
 "use server";
 
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember, getSprintProjectId } from "@/lib/authorization";
 import { eachDayOfInterval, startOfDay, isBefore, isAfter } from "date-fns";
 
 export type BurndownPoint = {
@@ -10,6 +12,15 @@ export type BurndownPoint = {
 };
 
 export async function getBurndownData(sprintId: string): Promise<BurndownPoint[]> {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const projectId = await getSprintProjectId(sprintId);
+  if (!projectId) return [];
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   const sprint = await prisma.sprint.findUnique({
     where: { id: sprintId },
     include: {
@@ -43,14 +54,15 @@ export async function getBurndownData(sprintId: string): Promise<BurndownPoint[]
     orderBy: { createdAt: "asc" },
   });
 
-  // Build a map of date → cumulative tasks completed by that date
+  // Build a map of date → cumulative unique tasks completed by that date
   const completionsByDate = new Map<string, number>();
-  let cumulativeCompleted = 0;
+  const completedTaskIds = new Set<string>();
 
   for (const log of completionLogs) {
+    if (!log.taskId || completedTaskIds.has(log.taskId)) continue;
+    completedTaskIds.add(log.taskId);
     const dateKey = startOfDay(new Date(log.createdAt)).toISOString();
-    cumulativeCompleted++;
-    completionsByDate.set(dateKey, cumulativeCompleted);
+    completionsByDate.set(dateKey, completedTaskIds.size);
   }
 
   // Generate burndown points

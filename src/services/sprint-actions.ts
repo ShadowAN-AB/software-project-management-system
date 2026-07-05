@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
 import { sprintSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -11,6 +12,12 @@ import { eventBus } from "@/lib/event-bus";
 import type { SSEFrame } from "@/lib/sse-events";
 
 export async function getSprintsByProject(projectId: string) {
+  const session = await auth();
+  if (!session?.user) return [];
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return [];
+
   return prisma.sprint.findMany({
     where: { projectId },
     include: {
@@ -22,6 +29,15 @@ export async function getSprintsByProject(projectId: string) {
 }
 
 export async function getSprint(id: string) {
+  const session = await auth();
+  if (!session?.user) return null;
+
+  const projectId = await getSprintProjectId(id);
+  if (!projectId) return null;
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return null;
+
   return prisma.sprint.findUnique({
     where: { id },
     include: {
@@ -83,6 +99,11 @@ export async function updateSprintStatus(sprintId: string, status: SprintStatus)
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
+  const sprintProjectId = await getSprintProjectId(sprintId);
+  if (!sprintProjectId) return { success: false, error: "Sprint not found" };
+  const isMember = await requireProjectMember(sprintProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
   const sprint = await prisma.sprint.update({
     where: { id: sprintId },
     data: { status },
@@ -114,6 +135,11 @@ export async function updateSprintStatus(sprintId: string, status: SprintStatus)
 export async function assignTaskToSprint(taskId: string, sprintId: string | null) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const taskProjectId = await getTaskProjectId(taskId);
+  if (!taskProjectId) return { success: false, error: "Task not found" };
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const task = await prisma.task.update({
     where: { id: taskId },
