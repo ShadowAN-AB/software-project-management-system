@@ -1,4 +1,7 @@
 import { ReactNode } from "react";
+import { getDueDateStatus, DUE_DATE_CONFIG } from "@/lib/date-utils";
+import { Clock, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
 
 type BadgeVariant = "default" | "success" | "warning" | "danger" | "info" | "purple";
 
@@ -79,4 +82,37 @@ export function PriorityBadge({ priority }: { priority: string }) {
     variant: "default" as BadgeVariant,
   };
   return <Badge variant={variant}>{label}</Badge>;
+}
+
+export function DueDateBadge({
+  dueDate,
+  compact = false,
+}: {
+  dueDate: Date | string | null | undefined;
+  compact?: boolean;
+}) {
+  if (!dueDate) return null;
+
+  const status = getDueDateStatus(dueDate);
+  if (status === "none" || status === "normal") {
+    if (compact) return null;
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+        <Clock className="h-3 w-3" strokeWidth={1.75} />
+        {format(new Date(dueDate), "MMM d")}
+      </span>
+    );
+  }
+
+  const config = DUE_DATE_CONFIG[status];
+  const Icon = status === "overdue" ? AlertTriangle : Clock;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${config.className}`}
+    >
+      <Icon className="h-3 w-3" strokeWidth={2} />
+      {compact ? config.label : `${config.label} · ${format(new Date(dueDate), "MMM d")}`}
+    </span>
+  );
 }

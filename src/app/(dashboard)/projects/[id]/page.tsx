@@ -1,12 +1,14 @@
-import { getProject } from "@/services/project-actions";
+import { getProject, getAllUsers } from "@/services/project-actions";
+import { getProjectOverview } from "@/services/overview-actions";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Users, ListTodo, Timer, ArrowLeft } from "lucide-react";
+import { Timer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { KanbanBoard } from "@/components/features/kanban-board";
 import { CreateTaskForm } from "@/components/features/create-task-form";
+import { ProjectOverview } from "@/components/features/project-overview";
+import { TeamManagement } from "@/components/features/team-management";
 
 export default async function ProjectDetailPage({
   params,
@@ -14,7 +16,12 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, project] = await Promise.all([auth(), getProject(id)]);
+  const [session, project, overview, allUsers] = await Promise.all([
+    auth(),
+    getProject(id),
+    getProjectOverview(id),
+    getAllUsers(),
+  ]);
 
   if (!project) notFound();
 
@@ -54,35 +61,8 @@ export default async function ProjectDetailPage({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Members</p>
-              <p className="text-lg font-semibold">{project.members.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <ListTodo className="h-5 w-5 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Tasks</p>
-              <p className="text-lg font-semibold">{project._count.tasks}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <Timer className="h-5 w-5 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Sprints</p>
-              <p className="text-lg font-semibold">{project.sprints.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Project Overview */}
+      {overview && <ProjectOverview data={overview} />}
 
       {/* Create Task */}
       <CreateTaskForm
@@ -95,31 +75,17 @@ export default async function ProjectDetailPage({
       <KanbanBoard
         tasks={project.tasks}
         projectId={project.id}
+        currentUserId={session?.user?.id ?? ""}
       />
 
       {/* Team Members */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-gray-900">Team Members</h2>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-gray-100">
-            {project.members.map((member) => (
-              <li key={member.id} className="px-6 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {member.user.name}
-                  </p>
-                  <p className="text-xs text-gray-500">{member.user.email}</p>
-                </div>
-                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                  {member.role.replace("_", " ")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+      <TeamManagement
+        projectId={project.id}
+        members={project.members}
+        allUsers={allUsers}
+        canManage={canManage}
+        currentUserId={session?.user?.id ?? ""}
+      />
     </div>
   );
 }

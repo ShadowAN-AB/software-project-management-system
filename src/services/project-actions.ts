@@ -39,8 +39,12 @@ export async function getProject(id: string) {
     include: {
       members: { include: { user: true } },
       tasks: {
-        include: { assignee: true },
-        orderBy: { createdAt: "desc" },
+        include: {
+          assignee: true,
+          _count: { select: { comments: true } },
+          labels: { include: { label: true } },
+        },
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
       },
       sprints: { orderBy: { startDate: "desc" } },
       _count: { select: { tasks: true } },
@@ -138,6 +142,13 @@ export async function addProjectMember(
 
   revalidatePath(`/projects/${projectId}`);
   return { success: true, data: undefined };
+}
+
+export async function getAllUsers() {
+  return prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 export async function removeProjectMember(projectId: string, memberId: string) {

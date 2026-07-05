@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { updateTaskStatus } from "@/services/task-actions";
-import { PriorityBadge } from "@/components/ui/badge";
+import { PriorityBadge, DueDateBadge } from "@/components/ui/badge";
 import { User, MessageSquare, Bug, Sparkles, Wrench, CheckSquare } from "lucide-react";
+import Link from "next/link";
 import type { TaskStatus } from "@prisma/client";
+import { useEventStream } from "@/hooks/use-event-stream";
+import type { SSEFrame } from "@/lib/sse-events";
 
 type Task = {
   id: string;
@@ -12,8 +15,10 @@ type Task = {
   status: TaskStatus;
   priority: string;
   type: string;
+  dueDate: Date | null;
   assignee: { id: string; name: string } | null;
   _count: { comments: number };
+  labels?: { id: string; label: { id: string; name: string; color: string } }[];
 };
 
 const COLUMNS: { status: TaskStatus; label: string; dotColor: string }[] = [
@@ -34,17 +39,56 @@ const TYPE_ICONS: Record<string, typeof Bug> = {
 export function KanbanBoard({
   tasks: initialTasks,
   projectId,
+  currentUserId,
 }: {
   tasks: Task[];
   projectId: string;
+  currentUserId: string;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [, startTransition] = useTransition();
+  const draggedTaskRef = useRef<string | null>(null);
+
+  useEventStream({
+    channels: [`project:${projectId}`],
+    currentUserId,
+    handlers: {
+      "task:created": (event: SSEFrame) => {
+        if (event.type !== "task:created") return;
+        setTasks((prev) => {
+          if (prev.some((t) => t.id === event.task.id)) return prev;
+          return [...prev, event.task as unknown as Task];
+        });
+      },
+      "task:statusChanged": (event: SSEFrame) => {
+        if (event.type !== "task:statusChanged") return;
+        if (draggedTaskRef.current) return;
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, status: event.status } : t
+          )
+        );
+      },
+      "task:updated": (event: SSEFrame) => {
+        if (event.type !== "task:updated") return;
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === event.taskId ? { ...t, ...event.changes } : t
+          )
+        );
+      },
+      "task:deleted": (event: SSEFrame) => {
+        if (event.type !== "task:deleted") return;
+        setTasks((prev) => prev.filter((t) => t.id !== event.taskId));
+      },
+    },
+  });
 
   function handleDragStart(taskId: string) {
     setDraggedTask(taskId);
+    draggedTaskRef.current = taskId;
   }
 
   function handleDragOver(e: React.DragEvent, status: TaskStatus) {
@@ -71,6 +115,7 @@ export function KanbanBoard({
     );
     const capturedDraggedTask = draggedTask;
     setDraggedTask(null);
+    draggedTaskRef.current = null;
 
     startTransition(async () => {
       const result = await updateTaskStatus(capturedDraggedTask, status);
@@ -86,6 +131,7 @@ export function KanbanBoard({
 
   function handleDragEnd() {
     setDraggedTask(null);
+    draggedTaskRef.current = null;
     setDragOverColumn(null);
   }
 
@@ -151,10 +197,32 @@ export function KanbanBoard({
                           }`}
                           strokeWidth={1.75}
                         />
-                        <p className="text-sm font-medium text-zinc-900 leading-snug">
+                        <Link
+                          href={`/tasks/${task.id}`}
+                          className="text-sm font-medium text-zinc-900 leading-snug hover:text-blue-600 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {task.title}
-                        </p>
+                        </Link>
                       </div>
+                      {task.labels && task.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {task.labels.map((tl) => (
+                            <span
+                              key={tl.id}
+                              className="inline-block px-1.5 py-0 rounded text-[10px] font-medium text-white leading-4"
+                              style={{ backgroundColor: tl.label.color }}
+                            >
+                              {tl.label.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {task.dueDate && task.status !== "DONE" && (
+                        <div className="mb-2">
+                          <DueDateBadge dueDate={task.dueDate} compact />
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                         <PriorityBadge priority={task.priority} />
                         <div className="flex items-center gap-2">

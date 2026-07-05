@@ -5,6 +5,23 @@
   --foreground: #09090b;
   --accent: #2563eb;
   --accent-light: #eff6ff;
+  --card-bg: #ffffff;
+  --card-border: #e4e4e7;
+  --muted: #71717a;
+  --input-bg: #ffffff;
+  --input-border: #e4e4e7;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --accent: #3b82f6;
+  --accent-light: #1e293b;
+  --card-bg: #18181b;
+  --card-border: #27272a;
+  --muted: #a1a1aa;
+  --input-bg: #18181b;
+  --input-border: #3f3f46;
 }
 
 @theme inline {
@@ -37,8 +54,16 @@ body {
   border-radius: 3px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1aa;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
 }
 
 /* Smooth all transitions by default */
@@ -50,6 +75,11 @@ body {
 ::selection {
   background: #bfdbfe;
   color: #1e3a5f;
+}
+
+.dark ::selection {
+  background: #1e3a5f;
+  color: #bfdbfe;
 }
 
 /* Focus ring utility */
@@ -68,6 +98,12 @@ body {
     linear-gradient(to right, #e4e4e7 1px, transparent 1px),
     linear-gradient(to bottom, #e4e4e7 1px, transparent 1px);
   background-size: 64px 64px;
+}
+
+.dark .bg-grid {
+  background-image:
+    linear-gradient(to right, #27272a 1px, transparent 1px),
+    linear-gradient(to bottom, #27272a 1px, transparent 1px);
 }
 
 .bg-grid-fade {
@@ -91,6 +127,12 @@ body {
 
 .shimmer {
   background: linear-gradient(90deg, transparent 0%, #f4f4f5 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .shimmer {
+  background: linear-gradient(90deg, transparent 0%, #27272a 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }

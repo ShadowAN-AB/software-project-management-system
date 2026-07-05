@@ -1,14 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { login } from "@/services/auth-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, CheckCircle2 } from "lucide-react";
 import type { ActionResult } from "@/types";
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "true";
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     login,
     null
@@ -57,6 +60,13 @@ export default function LoginPage() {
             action={action}
             className="mt-8 space-y-5"
           >
+            {justRegistered && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-lg text-sm text-emerald-700 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" strokeWidth={2} />
+                Account created successfully. Sign in to continue.
+              </div>
+            )}
+
             {state && !state.success && (
               <div className="p-3 bg-red-50 border border-red-200/80 rounded-lg text-sm text-red-600 flex items-center gap-2">
                 <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

@@ -1,12 +1,15 @@
 import { getSprint } from "@/services/sprint-actions";
+import { getBurndownData } from "@/services/burndown-actions";
+import { getSprintTimeEntries } from "@/services/time-tracking-actions";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
-import { ArrowLeft, Target } from "lucide-react";
+import { ArrowLeft, Target, Clock } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { SprintActions } from "@/components/features/sprint-actions";
+import { BurndownChart } from "@/components/features/burndown-chart";
 
 export default async function SprintDetailPage({
   params,
@@ -14,11 +17,16 @@ export default async function SprintDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, sprint] = await Promise.all([auth(), getSprint(id)]);
+  const [session, sprint, burndownData, sprintTimeEntries] = await Promise.all([
+    auth(),
+    getSprint(id),
+    getBurndownData(id),
+    getSprintTimeEntries(id),
+  ]);
 
   if (!sprint) notFound();
 
-  const doneTasks = sprint.tasks.filter((t) => t.status === "DONE").length;
+  const doneTasks = sprint.tasks.filter((t: { status: string }) => t.status === "DONE").length;
   const progress =
     sprint.tasks.length > 0
       ? Math.round((doneTasks / sprint.tasks.length) * 100)
@@ -75,9 +83,66 @@ export default async function SprintDetailPage({
         </CardContent>
       </Card>
 
+      {/* Burndown Chart */}
+      {sprint.tasks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+              Burndown Chart
+            </h2>
+          </CardHeader>
+          <CardContent>
+            <BurndownChart data={burndownData} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Time Summary */}
+      {sprintTimeEntries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-zinc-400" />
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                Time Logged
+              </h2>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                {(() => {
+                  const total = sprintTimeEntries.reduce((s: number, e: { minutes: number }) => s + e.minutes, 0);
+                  const h = Math.floor(total / 60);
+                  const m = total % 60;
+                  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                })()}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-gray-100 dark:divide-zinc-700">
+              {sprintTimeEntries.slice(0, 10).map((entry: { id: string; minutes: number; task: { title: string }; user: { name: string } }) => (
+                <li key={entry.id} className="px-6 py-2.5 flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                      {Math.floor(entry.minutes / 60) > 0
+                        ? `${Math.floor(entry.minutes / 60)}h ${entry.minutes % 60}m`
+                        : `${entry.minutes}m`}
+                    </span>
+                    <span className="text-zinc-500 dark:text-zinc-400 truncate">
+                      {entry.task.title}
+                    </span>
+                  </div>
+                  <span className="text-xs text-zinc-400 whitespace-nowrap">
+                    {entry.user.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
             Sprint Tasks ({sprint.tasks.length})
           </h2>
         </CardHeader>
@@ -88,7 +153,7 @@ export default async function SprintDetailPage({
             </p>
           ) : (
             <ul className="divide-y divide-gray-100">
-              {sprint.tasks.map((task) => (
+              {sprint.tasks.map((task: { id: string; title: string; status: string; priority: string; assignee: { name: string } | null }) => (
                 <li key={task.id} className="px-6 py-3 hover:bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0 flex-1">

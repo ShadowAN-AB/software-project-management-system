@@ -6,6 +6,9 @@ import { taskSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 import type { TaskStatus } from "@prisma/client";
+import { createNotification } from "@/services/notification-actions";
+import { eventBus } from "@/lib/event-bus";
+import type { SSEFrame } from "@/lib/sse-events";
 
 export async function getTasksByProject(projectId: string) {
   return prisma.task.findMany({
@@ -15,6 +18,7 @@ export async function getTasksByProject(projectId: string) {
       creator: true,
       sprint: true,
       _count: { select: { comments: true } },
+      labels: { include: { label: true } },
     },
     orderBy: [{ order: "asc" }, { createdAt: "desc" }],
   });
@@ -27,11 +31,16 @@ export async function getTask(id: string) {
       assignee: true,
       creator: true,
       sprint: true,
-      project: true,
+      project: {
+        include: {
+          members: { select: { userId: true } },
+        },
+      },
       comments: {
         include: { user: true },
         orderBy: { createdAt: "desc" },
       },
+      labels: { include: { label: true } },
     },
   });
 }
@@ -90,6 +99,33 @@ export async function createTask(
     },
   });
 
+  // Notify assignee
+  if (task.assigneeId && task.assigneeId !== session.user.id) {
+    await createNotification({
+      userId: task.assigneeId,
+      type: "TASK_ASSIGNED",
+      title: "Task Assigned",
+      message: `${session.user.name} assigned you "${task.title}"`,
+      link: `/tasks/${task.id}`,
+    });
+  }
+
+  eventBus.emit(`project:${parsed.data.projectId}`, {
+    type: "task:created",
+    _actorId: session.user.id,
+    task: {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      type: task.type,
+      dueDate: task.dueDate?.toISOString() ?? null,
+      assignee: null,
+      labels: [],
+      _count: { comments: 0 },
+    },
+  });
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   return { success: true, data: undefined };
 }
@@ -97,6 +133,11 @@ export async function createTask(
 export async function updateTaskStatus(taskId: string, status: TaskStatus) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const previousTask = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { status: true },
+  });
 
   const task = await prisma.task.update({
     where: { id: taskId },
@@ -113,7 +154,30 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
     },
   });
 
+  // Notify assignee of status change
+  if (task.assigneeId && task.assigneeId !== session.user.id) {
+    await createNotification({
+      userId: task.assigneeId,
+      type: "TASK_STATUS_CHANGED",
+      title: "Status Updated",
+      message: `${session.user.name} moved "${task.title}" to ${status.replace("_", " ")}`,
+      link: `/tasks/${taskId}`,
+    });
+  }
+
+  eventBus.emit(
+    [`project:${task.projectId}`, `task:${taskId}`],
+    {
+      type: "task:statusChanged",
+      _actorId: session.user.id,
+      taskId,
+      status,
+      previousStatus: previousTask?.status ?? status,
+    } as SSEFrame
+  );
+
   revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/tasks/${taskId}`);
   return { success: true, data: undefined };
 }
 
@@ -142,7 +206,18 @@ export async function updateTask(
     },
   });
 
+  eventBus.emit(
+    [`project:${task.projectId}`, `task:${taskId}`],
+    {
+      type: "task:updated",
+      _actorId: session.user.id,
+      taskId,
+      changes: data,
+    } as SSEFrame
+  );
+
   revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/tasks/${taskId}`);
   return { success: true, data: undefined };
 }
 
@@ -151,6 +226,13 @@ export async function deleteTask(taskId: string) {
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
   const task = await prisma.task.delete({ where: { id: taskId } });
+
+  eventBus.emit(`project:${task.projectId}`, {
+    type: "task:deleted",
+    _actorId: session.user.id,
+    taskId,
+  } as SSEFrame);
+
   revalidatePath(`/projects/${task.projectId}`);
   return { success: true, data: undefined };
 }
@@ -167,11 +249,40 @@ export async function addComment(
 
   if (!content?.trim()) return { success: false, error: "Comment cannot be empty" };
 
-  await prisma.comment.create({
+  const comment = await prisma.comment.create({
     data: { content, taskId, userId: session.user.id },
   });
 
+  eventBus.emit(`task:${taskId}`, {
+    type: "comment:added",
+    _actorId: session.user.id,
+    taskId,
+    comment: {
+      id: comment.id,
+      content: comment.content,
+      createdAt: comment.createdAt.toISOString(),
+      user: { id: session.user.id, name: session.user.name, email: session.user.email },
+    },
+  } as SSEFrame);
+
   const task = await prisma.task.findUnique({ where: { id: taskId } });
+
+  // Notify assignee and creator about the comment
+  const notifyIds = new Set<string>();
+  if (task?.assigneeId && task.assigneeId !== session.user.id) notifyIds.add(task.assigneeId);
+  if (task?.creatorId && task.creatorId !== session.user.id) notifyIds.add(task.creatorId);
+
+  for (const uid of notifyIds) {
+    await createNotification({
+      userId: uid,
+      type: "COMMENT_ADDED",
+      title: "New Comment",
+      message: `${session.user.name} commented on "${task?.title}"`,
+      link: `/tasks/${taskId}`,
+    });
+  }
+
   revalidatePath(`/projects/${task?.projectId}`);
+  revalidatePath(`/tasks/${taskId}`);
   return { success: true, data: undefined };
 }

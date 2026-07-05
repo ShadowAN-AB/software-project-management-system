@@ -1,4 +1,5 @@
 import { getDashboardStats } from "@/services/dashboard-actions";
+import { getAdminCount } from "@/services/admin-actions";
 import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -9,12 +10,17 @@ import {
   Clock,
   Activity,
   ArrowUpRight,
+  ShieldAlert,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const [session, stats] = await Promise.all([auth(), getDashboardStats()]);
+  const [session, stats, adminCount] = await Promise.all([
+    auth(),
+    getDashboardStats(),
+    getAdminCount(),
+  ]);
 
   if (!stats) return null;
 
@@ -59,6 +65,25 @@ export default async function DashboardPage() {
           Here&apos;s what&apos;s happening across your projects
         </p>
       </div>
+
+      {/* No-admin bootstrap banner */}
+      {adminCount === 0 && (
+        <Link
+          href="/setup"
+          className="flex items-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 hover:border-amber-300 transition-colors group"
+        >
+          <ShieldAlert className="h-5 w-5 text-amber-600 flex-shrink-0" strokeWidth={1.75} />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-900">
+              No admin exists — system setup required
+            </p>
+            <p className="text-xs text-amber-700/70 mt-0.5">
+              Promote your account to Admin to create projects and manage the system.
+            </p>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-amber-400 group-hover:text-amber-600 transition-colors" />
+        </Link>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

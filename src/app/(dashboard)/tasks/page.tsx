@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
+import { StatusBadge, PriorityBadge, DueDateBadge } from "@/components/ui/badge";
 import { ListTodo } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -100,6 +100,7 @@ function TaskList({
     status: string;
     priority: string;
     type: string;
+    dueDate: Date | null;
     updatedAt: Date;
     project: { id: string; name: string; key: string };
     sprint: { name: string } | null;
@@ -109,7 +110,7 @@ function TaskList({
     <ul className="divide-y divide-gray-100">
       {tasks.map((task) => (
         <li key={task.id} className="px-6 py-3 hover:bg-gray-50">
-          <Link href={`/projects/${task.project.id}`}>
+          <Link href={`/tasks/${task.id}`}>
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-900">{task.title}</p>
@@ -126,6 +127,9 @@ function TaskList({
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">
+                {task.dueDate && task.status !== "DONE" && (
+                  <DueDateBadge dueDate={task.dueDate} compact />
+                )}
                 <PriorityBadge priority={task.priority} />
                 <StatusBadge status={task.status} />
                 <span className="text-xs text-gray-400 whitespace-nowrap">

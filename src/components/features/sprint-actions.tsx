@@ -16,7 +16,9 @@ export function SprintActions({
   const [isPending, startTransition] = useTransition();
 
   function handleStatusChange(status: SprintStatus) {
-    startTransition(() => updateSprintStatus(sprintId, status));
+    startTransition(async () => {
+      await updateSprintStatus(sprintId, status);
+    });
   }
 
   if (currentStatus === "COMPLETED") return null;

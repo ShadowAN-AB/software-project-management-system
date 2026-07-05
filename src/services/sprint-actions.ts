@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionResult } from "@/types";
 import type { SprintStatus } from "@prisma/client";
+import { eventBus } from "@/lib/event-bus";
+import type { SSEFrame } from "@/lib/sse-events";
 
 export async function getSprintsByProject(projectId: string) {
   return prisma.sprint.findMany({
@@ -92,6 +94,17 @@ export async function updateSprintStatus(sprintId: string, status: SprintStatus)
       data: { sprintId: null },
     });
   }
+
+  eventBus.emit(
+    [`project:${sprint.projectId}`, `sprint:${sprintId}`],
+    {
+      type: "sprint:statusChanged",
+      _actorId: session.user.id,
+      sprintId,
+      status,
+      projectId: sprint.projectId,
+    } as SSEFrame
+  );
 
   revalidatePath(`/sprints/${sprintId}`);
   revalidatePath(`/projects/${sprint.projectId}`);

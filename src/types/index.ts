@@ -19,7 +19,8 @@ declare module "next-auth" {
   }
 }
 
-declare module "next-auth/jwt" {
+// NextAuth v5 uses @auth/core
+declare module "@auth/core/jwt" {
   interface JWT {
     id: string;
     role: Role;

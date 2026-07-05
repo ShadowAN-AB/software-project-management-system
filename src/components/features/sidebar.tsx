@@ -10,10 +10,16 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
+  Settings,
+  BarChart3,
+  Activity,
+  UsersRound,
 } from "lucide-react";
 import { useState } from "react";
+import { ThemeToggle } from "./theme-toggle";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tasks", label: "My Tasks", icon: ListTodo },
@@ -48,6 +54,17 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  const navItems = [
+    ...baseNavItems,
+    { href: "/activity", label: "Activity", icon: Activity },
+    { href: "/reports", label: "Reports", icon: BarChart3 },
+    ...(["ADMIN", "PROJECT_MANAGER"].includes(userRole)
+      ? [{ href: "/workload", label: "Workload", icon: UsersRound }]
+      : []),
+    { href: "/settings", label: "Settings", icon: Settings },
+    ...(userRole === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+  ];
 
   return (
     <aside
@@ -101,6 +118,11 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      {/* Theme toggle */}
+      <div className="px-3 mb-1">
+        <ThemeToggle collapsed={collapsed} />
+      </div>
 
       {/* Collapse toggle */}
       <div className="px-3 mb-2">
