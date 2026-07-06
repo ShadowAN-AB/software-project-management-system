@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Timer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { CreateTaskForm } from "@/components/features/create-task-form";
+import { isAIAvailable } from "@/services/ai-actions";
 import { ProjectOverview } from "@/components/features/project-overview";
 import { ProjectViewSwitcher } from "@/components/features/project-view-switcher";
 import { TeamManagement } from "@/components/features/team-management";
@@ -17,11 +18,12 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, project, overview, allUsers] = await Promise.all([
+  const [session, project, overview, allUsers, aiEnabled] = await Promise.all([
     auth(),
     getProject(id),
     getProjectOverview(id),
     getAllUsers(),
+    isAIAvailable(),
   ]);
 
   if (!project) notFound();
@@ -56,7 +58,7 @@ export default async function ProjectDetailPage({
           {canManage && (
             <Link
               href={`/sprints/new?projectId=${project.id}`}
-              className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 bg-zinc-900 dark:bg-zinc-100 rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
             >
               <Timer className="h-4 w-4" />
               New Sprint
@@ -73,6 +75,7 @@ export default async function ProjectDetailPage({
         projectId={project.id}
         members={project.members.map((m) => m.user)}
         sprints={project.sprints}
+        aiEnabled={aiEnabled}
       />
 
       {/* Kanban / Gantt View */}

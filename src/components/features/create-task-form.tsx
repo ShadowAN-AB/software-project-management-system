@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createTask } from "@/services/task-actions";
+import { generateTaskDescription } from "@/services/ai-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp, Sparkles, Loader2 } from "lucide-react";
 import type { ActionResult } from "@/types";
 
 type Member = { id: string; name: string; email: string };
@@ -15,16 +16,46 @@ export function CreateTaskForm({
   projectId,
   members,
   sprints,
+  aiEnabled = false,
 }: {
   projectId: string;
   members: Member[];
   sprints: Sprint[];
+  aiEnabled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [aiPending, setAiPending] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     createTask,
     null
   );
+
+  useEffect(() => {
+    if (state?.success) {
+      setTitle("");
+      setDescription("");
+      setAiError(null);
+    }
+  }, [state]);
+
+  async function handleGenerate() {
+    setAiError(null);
+    if (title.trim().length < 3) {
+      setAiError("Enter a title first (min 3 characters).");
+      return;
+    }
+    setAiPending(true);
+    const result = await generateTaskDescription(title);
+    setAiPending(false);
+    if (result.success) {
+      setDescription(result.data);
+    } else {
+      setAiError(result.error);
+    }
+  }
 
   return (
     <Card>
@@ -61,19 +92,43 @@ export function CreateTaskForm({
               label="Title"
               placeholder="What needs to be done?"
               required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
 
             <div className="space-y-1">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                  Description
+                </label>
+                {aiEnabled && (
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={aiPending}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {aiPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {aiPending ? "Generating…" : "Generate with AI"}
+                  </button>
+                )}
+              </div>
               <textarea
                 id="description"
                 name="description"
-                rows={2}
+                rows={aiEnabled ? 5 : 2}
                 className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Add details..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
+              {aiError && (
+                <p className="text-xs text-red-600">{aiError}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

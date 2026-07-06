@@ -4,6 +4,33 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 
+const ROLE_TTL_MS = 30_000;
+const globalForRoleCache = globalThis as unknown as {
+  __pmsRoleCache?: Map<string, { role: Role; expires: number }>;
+};
+const roleCache =
+  globalForRoleCache.__pmsRoleCache ??
+  (globalForRoleCache.__pmsRoleCache = new Map());
+
+async function getCachedRole(userId: string): Promise<Role | null> {
+  const now = Date.now();
+  const hit = roleCache.get(userId);
+  if (hit && hit.expires > now) return hit.role;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!dbUser) return null;
+
+  roleCache.set(userId, { role: dbUser.role, expires: now + ROLE_TTL_MS });
+  return dbUser.role;
+}
+
+export function invalidateRoleCache(userId: string) {
+  roleCache.delete(userId);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -47,16 +74,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id as string;
         token.role = (user as { role: Role }).role;
       }
-      // Refresh role from DB on every request to pick up role changes
       if (token.id) {
         try {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: { role: true },
-          });
-          if (dbUser) {
-            token.role = dbUser.role;
-          }
+          const role = await getCachedRole(token.id as string);
+          if (role) token.role = role;
         } catch {
           // DB error — keep existing token role
         }

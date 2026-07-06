@@ -68,7 +68,7 @@ export function UserManagement({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             User Management
           </h2>
           <span className="text-xs text-zinc-400">

@@ -26,7 +26,7 @@ export default async function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <User className="h-4.5 w-4.5 text-zinc-400" strokeWidth={1.75} />
-            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               Profile
             </h2>
           </div>
@@ -65,7 +65,7 @@ export default async function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Lock className="h-4.5 w-4.5 text-zinc-400" strokeWidth={1.75} />
-            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
               Change Password
             </h2>
           </div>

@@ -1,6 +1,5 @@
 import { getDashboardStats } from "@/services/dashboard-actions";
 import { getAdminCount } from "@/services/admin-actions";
-import { checkDueDateReminders } from "@/services/due-date-reminder-actions";
 import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -23,9 +22,6 @@ export default async function DashboardPage() {
     getAdminCount(),
   ]);
 
-  // Fire-and-forget: check for overdue/due-soon tasks and send notifications
-  checkDueDateReminders().catch(() => {});
-
   if (!stats) return null;
 
   const statCards = [
@@ -33,29 +29,25 @@ export default async function DashboardPage() {
       label: "Projects",
       value: stats.projectCount,
       icon: FolderKanban,
-      gradient: "from-blue-500 to-cyan-500",
-      bg: "bg-blue-50",
+      accent: "text-blue-500",
     },
     {
-      label: "Total Tasks",
+      label: "Total tasks",
       value: stats.totalTasks,
       icon: ListTodo,
-      gradient: "from-violet-500 to-purple-500",
-      bg: "bg-violet-50",
+      accent: "text-violet-500",
     },
     {
-      label: "In Progress",
+      label: "In progress",
       value: stats.tasksByStatus.IN_PROGRESS ?? 0,
       icon: Clock,
-      gradient: "from-amber-500 to-orange-500",
-      bg: "bg-amber-50",
+      accent: "text-amber-500",
     },
     {
       label: "Completed",
       value: stats.tasksByStatus.DONE ?? 0,
       icon: CheckCircle2,
-      gradient: "from-emerald-500 to-teal-500",
-      bg: "bg-emerald-50",
+      accent: "text-emerald-500",
     },
   ];
 
@@ -93,20 +85,19 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card) => (
           <Card key={card.label}>
-            <CardContent className="flex items-center gap-4">
-              <div
-                className={`h-12 w-12 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-lg shadow-zinc-900/5`}
-              >
-                <card.icon className="h-6 w-6 text-white" strokeWidth={1.75} />
-              </div>
+            <CardContent className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
                   {card.label}
                 </p>
-                <p className="text-2xl font-bold text-zinc-900 mt-0.5">
+                <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight mt-2">
                   {card.value}
                 </p>
               </div>
+              <card.icon
+                className={`h-4 w-4 ${card.accent}`}
+                strokeWidth={1.75}
+              />
             </CardContent>
           </Card>
         ))}
@@ -117,8 +108,8 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
-                My Tasks
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                My tasks
               </h2>
               <Link
                 href="/tasks"
@@ -163,8 +154,8 @@ export default async function DashboardPage() {
         {/* Active Sprints */}
         <Card>
           <CardHeader>
-            <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
-              Active Sprints
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              Active sprints
             </h2>
           </CardHeader>
           <CardContent className="p-0">
@@ -218,8 +209,8 @@ export default async function DashboardPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-zinc-400" strokeWidth={1.75} />
-              <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
-                Recent Activity
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                Recent activity
               </h2>
             </div>
           </CardHeader>

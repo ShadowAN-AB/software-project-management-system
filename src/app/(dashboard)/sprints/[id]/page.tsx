@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { SprintActions } from "@/components/features/sprint-actions";
 import { BurndownChart } from "@/components/features/burndown-chart";
 import { ExportCsvButton } from "@/components/features/export-csv-button";
+import { SprintRetro } from "@/components/features/sprint-retro";
+import { isAIAvailable } from "@/services/ai-actions";
 
 export default async function SprintDetailPage({
   params,
@@ -18,11 +20,12 @@ export default async function SprintDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [session, sprint, burndownData, sprintTimeEntries] = await Promise.all([
+  const [session, sprint, burndownData, sprintTimeEntries, aiEnabled] = await Promise.all([
     auth(),
     getSprint(id),
     getBurndownData(id),
     getSprintTimeEntries(id),
+    isAIAvailable(),
   ]);
 
   if (!sprint) notFound();
@@ -86,6 +89,10 @@ export default async function SprintDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {aiEnabled && sprint.tasks.length > 0 && (
+        <SprintRetro sprintId={sprint.id} />
+      )}
 
       {/* Burndown Chart */}
       {sprint.tasks.length > 0 && (

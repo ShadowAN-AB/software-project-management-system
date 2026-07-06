@@ -7,9 +7,10 @@ import {
   deleteSubtask,
   updateSubtaskTitle,
 } from "@/services/subtask-actions";
+import { decomposeTask } from "@/services/ai-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ListChecks, Plus, X, Trash2, Check, Pencil } from "lucide-react";
+import { ListChecks, Plus, X, Trash2, Check, Pencil, Sparkles, Loader2 } from "lucide-react";
 
 type Subtask = {
   id: string;
@@ -21,9 +22,11 @@ type Subtask = {
 export function TaskChecklist({
   taskId,
   subtasks,
+  aiEnabled = false,
 }: {
   taskId: string;
   subtasks: Subtask[];
+  aiEnabled?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
@@ -31,6 +34,17 @@ export function TaskChecklist({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [aiPending, setAiPending] = useState(false);
+
+  async function handleDecompose() {
+    setError(null);
+    setAiPending(true);
+    const result = await decomposeTask(taskId);
+    setAiPending(false);
+    if (!result.success) {
+      setError(result.error);
+    }
+  }
 
   const completedCount = subtasks.filter((s) => s.completed).length;
   const totalCount = subtasks.length;
@@ -93,13 +107,29 @@ export function TaskChecklist({
               </span>
             )}
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-0.5"
-          >
-            {showForm ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-            {showForm ? "Cancel" : "Add Item"}
-          </button>
+          <div className="flex items-center gap-3">
+            {aiEnabled && (
+              <button
+                onClick={handleDecompose}
+                disabled={aiPending}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {aiPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                {aiPending ? "Generating…" : "AI decompose"}
+              </button>
+            )}
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-0.5"
+            >
+              {showForm ? <X className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+              {showForm ? "Cancel" : "Add Item"}
+            </button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

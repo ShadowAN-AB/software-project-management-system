@@ -101,7 +101,7 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
         <CardContent>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-zinc-700">
-              Overall Progress
+              Overall progress
             </span>
             <span className="text-sm font-bold text-zinc-900">{progress}%</span>
           </div>
@@ -133,8 +133,8 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
         {/* Sprint Timeline */}
         <Card>
           <CardHeader>
-            <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
-              Sprint Timeline
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              Sprint timeline
             </h3>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -202,8 +202,8 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
         {/* Team Distribution */}
         <Card>
           <CardHeader>
-            <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
-              Task Distribution
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              Task distribution
             </h3>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -257,7 +257,7 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Recent Activity
           </h3>
         </CardHeader>

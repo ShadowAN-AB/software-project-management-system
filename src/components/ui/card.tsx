@@ -11,9 +11,9 @@ export function Card({
 }) {
   return (
     <div
-      className={`bg-white dark:bg-zinc-800/50 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 shadow-sm ${
+      className={`bg-white dark:bg-zinc-900/60 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 shadow-[0_1px_2px_rgb(0_0_0_/_0.04)] ${
         hoverable
-          ? "transition-all duration-200 hover:shadow-md hover:border-zinc-300 hover:-translate-y-0.5"
+          ? "transition-all duration-200 hover:shadow-[0_4px_16px_rgb(0_0_0_/_0.06)] hover:border-zinc-300 dark:hover:border-zinc-700 hover:-translate-y-0.5"
           : ""
       } ${className}`}
     >
@@ -33,7 +33,7 @@ export function CardHeader({
 }) {
   return (
     <div
-      className={`px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 ${className}`}
+      className={`px-6 py-4 border-b border-zinc-100/70 dark:border-zinc-800 ${className}`}
       onClick={onClick}
       role={onClick ? "button" : undefined}
     >

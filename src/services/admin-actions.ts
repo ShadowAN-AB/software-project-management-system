@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth, invalidateRoleCache } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
@@ -74,6 +74,7 @@ export async function updateUserRole(
     where: { id: userId },
     data: { role },
   });
+  invalidateRoleCache(userId);
 
   revalidatePath("/admin");
   return { success: true, data: undefined };
@@ -94,6 +95,7 @@ export async function bootstrapAdmin(): Promise<ActionResult> {
     });
     return true;
   });
+  if (result) invalidateRoleCache(session.user.id);
 
   if (!result) {
     return { success: false, error: "An admin already exists. Contact them for role changes." };

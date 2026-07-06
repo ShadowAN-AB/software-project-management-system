@@ -50,7 +50,7 @@ export default async function NotificationsPage() {
           {unread.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
                   Unread ({unread.length})
                 </h2>
               </CardHeader>
@@ -93,7 +93,7 @@ export default async function NotificationsPage() {
           {read.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
                   Earlier ({read.length})
                 </h2>
               </CardHeader>

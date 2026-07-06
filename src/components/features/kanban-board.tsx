@@ -372,7 +372,7 @@ export function KanbanBoard({
     <div>
       {/* Header with filter toggle */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
           Board
         </h2>
         <div className="flex items-center gap-2">
@@ -645,10 +645,10 @@ export function KanbanBoard({
           return (
             <div
               key={col.status}
-              className={`flex-shrink-0 w-[272px] rounded-xl transition-colors duration-150 ${
+              className={`flex-shrink-0 w-[272px] rounded-2xl transition-colors duration-150 ${
                 isOver
                   ? "bg-blue-50/80 dark:bg-blue-950/30 ring-2 ring-blue-200 dark:ring-blue-800 ring-inset"
-                  : "bg-zinc-50/80 dark:bg-zinc-900/50"
+                  : "bg-zinc-50 dark:bg-zinc-900/40"
               }`}
               onDragOver={(e) => handleDragOver(e, col.status)}
               onDragLeave={handleDragLeave}
@@ -662,7 +662,7 @@ export function KanbanBoard({
                     {col.label}
                   </h3>
                 </div>
-                <span className="text-xs text-zinc-400 dark:text-zinc-500 bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-md font-medium shadow-sm border border-zinc-100 dark:border-zinc-700">
+                <span className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400 font-medium">
                   {columnTasks.length}
                 </span>
               </div>
@@ -678,10 +678,10 @@ export function KanbanBoard({
                       draggable={!selectionMode}
                       onDragStart={() => handleDragStart(task.id)}
                       onDragEnd={handleDragEnd}
-                      className={`bg-white dark:bg-zinc-800 p-3 rounded-lg border shadow-sm transition-all duration-150 ${
+                      className={`bg-white dark:bg-zinc-900 p-3 rounded-xl border shadow-[0_1px_2px_rgb(0_0_0_/_0.04)] transition-all duration-150 ${
                         isSelected
-                          ? "border-blue-400 dark:border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800"
-                          : "border-zinc-200/80 dark:border-zinc-700 hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600"
+                          ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-100 dark:ring-blue-950"
+                          : "border-zinc-200/70 dark:border-zinc-800 hover:shadow-[0_4px_12px_rgb(0_0_0_/_0.06)] hover:border-zinc-300 dark:hover:border-zinc-700"
                       } ${
                         selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
                       } ${

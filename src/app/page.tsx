@@ -120,33 +120,29 @@ export default async function Home() {
               {[
                 {
                   icon: Users,
-                  title: "Team Management",
+                  title: "Team management",
                   desc: "Role-based access with Admin, PM, Developer, and Tester roles. Everyone sees what they need.",
-                  gradient: "from-blue-500 to-cyan-500",
+                  accent: "text-blue-500",
                 },
                 {
                   icon: BarChart3,
-                  title: "Sprint Planning",
+                  title: "Sprint planning",
                   desc: "Plan sprints, track progress with Kanban boards, and complete sprints with automatic task rollover.",
-                  gradient: "from-violet-500 to-purple-500",
+                  accent: "text-violet-500",
                 },
                 {
                   icon: Zap,
-                  title: "Live Dashboard",
+                  title: "Live dashboard",
                   desc: "Real-time stats, activity feeds, and progress tracking. Know exactly where your project stands.",
-                  gradient: "from-amber-500 to-orange-500",
+                  accent: "text-amber-500",
                 },
               ].map((feature) => (
                 <div
                   key={feature.title}
-                  className="group p-8 bg-white rounded-2xl border border-zinc-200/80 shadow-sm hover:shadow-md hover:border-zinc-300 transition-all duration-200 hover:-translate-y-0.5"
+                  className="group p-7 bg-white rounded-2xl border border-zinc-200/70 shadow-[0_1px_2px_rgb(0_0_0_/_0.04)] hover:shadow-[0_4px_16px_rgb(0_0_0_/_0.06)] hover:border-zinc-300 transition-all duration-200 hover:-translate-y-0.5"
                 >
-                  <div
-                    className={`h-10 w-10 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 shadow-lg shadow-zinc-900/5`}
-                  >
-                    <feature.icon className="h-5 w-5 text-white" strokeWidth={1.75} />
-                  </div>
-                  <h3 className="font-semibold text-zinc-900 text-[15px]">
+                  <feature.icon className={`h-5 w-5 ${feature.accent} mb-4`} strokeWidth={1.75} />
+                  <h3 className="font-semibold text-zinc-900 text-[15px] tracking-tight">
                     {feature.title}
                   </h3>
                   <p className="mt-2 text-sm text-zinc-500 leading-relaxed">

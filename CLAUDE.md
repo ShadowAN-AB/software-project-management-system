@@ -26,16 +26,19 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 **Layering:** Pages → Feature Components → Server Actions → Prisma → PostgreSQL
 
-- `src/app/(auth)/` — Login/register pages (no sidebar)
-- `src/app/(dashboard)/` — All authenticated pages (shared layout with sidebar + notification bell)
-- `src/app/api/` — 6 API routes: NextAuth handler, attachment download, invite validation, SSE event stream, cron due-date reminders, CSV export
-- `src/components/ui/` — Reusable primitives (Button, Card, Input, Badge) — all custom, no component library
-- `src/components/features/` — Domain-specific client components (KanbanBoard, TaskDetail, TaskChecklist, Sidebar, etc.)
+- `src/app/(auth)/` — Login/register pages (no sidebar). Both wrap `useSearchParams()` in `<Suspense>` boundaries (required by Next.js 16 static prerendering).
+- `src/app/(dashboard)/` — All authenticated pages. Layout is a server component that fetches session/notifications, then renders `DashboardShell` (client component managing responsive sidebar state).
+- `src/app/api/` — REST routes only (6 dirs): `auth/` (NextAuth), `attachments/` (file download), `invite/` (token validation), `events/` (SSE stream), `cron/` (due-date reminders), `export/` (CSV).
+- `src/components/ui/` — Reusable primitives (Button, Card, Input, Badge) — all custom, no component library.
+- `src/components/features/` — Domain-specific client components (KanbanBoard, GanttChart, TaskDetail, Sidebar, DashboardShell, etc.).
 - `src/services/` — Server actions ("use server") for all mutations and data fetching. 20 action modules.
-- `src/lib/auth.ts` — NextAuth config with Credentials provider and JWT callbacks
-- `src/lib/authorization.ts` — Shared auth helpers: `requireAuth()`, `requireProjectMember()`, `getTaskProjectId()`, `getSprintProjectId()`
-- `src/lib/validations.ts` — Zod schemas for all form inputs
-- `src/types/index.ts` — NextAuth module augmentation + `ActionResult<T>` type
+- `src/lib/auth.ts` — NextAuth config with Credentials provider and JWT callbacks.
+- `src/lib/authorization.ts` — `requireAuth()`, `requireProjectMember()`, `getTaskProjectId()`, `getSprintProjectId()`.
+- `src/lib/email.ts` — Resend integration for email notifications. Gracefully no-ops without `RESEND_API_KEY`.
+- `src/lib/ai.ts` — Anthropic SDK client (Haiku 4.5). Exports `generateText`, `generateJSON<T>`, `isAIEnabled`, `aiErrorMessage`. Gracefully no-ops without `ANTHROPIC_API_KEY` (same pattern as email). Returns typed `AIResult<T> = { ok: true; value: T } | { ok: false; error: AIError }`.
+- `src/lib/project-templates.ts` — Built-in project templates (Scrum, Bug Tracking, Product Launch, Website Redesign) with predefined tasks and labels.
+- `src/lib/validations.ts` — Zod schemas for all form inputs.
+- `src/types/index.ts` — NextAuth module augmentation + `ActionResult<T>` type.
 
 **Path alias:** `@/*` maps to `./src/*`
 
@@ -49,9 +52,9 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 **NEXT_REDIRECT is an error.** `redirect()` throws a `NEXT_REDIRECT` error. Server actions that call `redirect()` must re-throw it — never swallow it in a try/catch. This has caused bugs before.
 
-**JWT role refresh from DB.** The JWT callback in `src/lib/auth.ts` queries the database on every request to pick up role changes immediately. This is intentional — don't remove it.
+**JWT role refresh with 30s cache.** The JWT callback in `src/lib/auth.ts` looks up the user's role via `getCachedRole()` — an in-process `globalThis` map with a 30s TTL. This still picks up role changes without hitting the DB on every request. Any code path that mutates `user.role` (currently `updateUserRole` and `bootstrapAdmin` in `admin-actions.ts`) MUST call `invalidateRoleCache(userId)` right after the write so the change is visible immediately.
 
-**Optimistic UI on Kanban.** `KanbanBoard` applies drag-and-drop status changes optimistically, then calls the server action. On failure it reverts.
+**Optimistic UI on Kanban.** `KanbanBoard` applies drag-and-drop status changes and bulk operations optimistically, then calls the server action. On failure it reverts.
 
 **Roles:** ADMIN, PROJECT_MANAGER, DEVELOPER, TESTER. Only ADMIN/PM can create projects and manage sprints. Only ADMIN can access the admin panel and invite system.
 
@@ -68,7 +71,7 @@ Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`
 
 ## Database
 
-14 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Neon (free tier).
+15 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Neon (free tier).
 
 Use `prisma db push` instead of `prisma migrate dev` — Neon has advisory lock issues with migrations.
 
@@ -76,16 +79,20 @@ After a DB reset: clear browser cookies for localhost:3000 (stale JWT tokens ref
 
 Attachments are stored as binary (`Bytes`) in the database — this is a known scalability issue.
 
+Seed data creates 4 users (admin@pms.dev, pm@pms.dev, dev@pms.dev, tester@pms.dev — all password `password123`) plus a sample project.
+
 ## Dark Mode
 
 CSS variables in `globals.css` with a `.dark` class. Flash-prevention inline script in `src/app/layout.tsx`. Theme state managed by `ThemeProvider` context in `src/components/features/theme-provider.tsx`. All UI components must support both light and dark variants via `dark:` Tailwind classes.
 
+Global dark mode overrides in `globals.css` auto-adapt common utility classes (`.dark .text-zinc-900`, `.dark .bg-zinc-50`, etc.) so not every component needs explicit `dark:` variants for basic text/background colors.
+
 ## Real-Time Updates (SSE)
 
-The app uses Server-Sent Events for live updates across browser sessions. Zero external dependencies.
+Server-Sent Events for live updates across browser sessions. Zero external dependencies.
 
 - `src/lib/event-bus.ts` — In-memory pub/sub singleton (same `globalThis` pattern as `prisma.ts`). Channels: `project:{id}`, `user:{userId}`, `task:{id}`, `sprint:{id}`.
-- `src/lib/sse-events.ts` — Typed event definitions (`SSEFrame` = `SSEEvent` + `_actorId`).
+- `src/lib/sse-events.ts` — Typed event definitions (`SSEFrame` = `SSEEvent` + `_actorId`). Includes single-task and bulk events.
 - `src/app/api/events/route.ts` — Authenticated SSE endpoint. Auto-subscribes to `user:{userId}` for notifications. 30s heartbeat.
 - `src/hooks/use-event-stream.ts` — Client hook. Exponential backoff reconnection. Filters out own events via `_actorId` to avoid conflicts with optimistic UI.
 
@@ -93,10 +100,32 @@ The app uses Server-Sent Events for live updates across browser sessions. Zero e
 
 **Key invariant**: Server actions still call `revalidatePath()` for the acting user. SSE provides updates to *other* users. The `_actorId` field prevents double-application.
 
+## Email Notifications
+
+`src/lib/email.ts` uses Resend for transactional emails. If `RESEND_API_KEY` is not set, all email calls silently no-op — email is best-effort, never blocks the server action. Emails are sent for: task assignment, status changes, comments, project member additions, due-soon, and overdue reminders.
+
+## Project Templates
+
+`src/lib/project-templates.ts` defines built-in templates (Scrum Project, Bug Tracking, Product Launch, Website Redesign). Each template includes predefined labels and tasks. The `createProjectFromTemplate` server action in `project-actions.ts` creates the project, labels, and tasks in one transaction. No schema changes needed — templates are code-only.
+
+## Bulk Task Operations
+
+`bulkUpdateTasks` and `bulkDeleteTasks` in `task-actions.ts` operate on up to 50 tasks at once (status, priority, assignee changes or deletion). The KanbanBoard renders selection checkboxes on each task card and shows a bulk action toolbar when tasks are selected.
+
+## Responsive Layout
+
+The dashboard layout uses `DashboardShell` (client component in `src/components/features/dashboard-shell.tsx`) which manages mobile sidebar state. On desktop (`md:` breakpoint and up), the sidebar renders normally. On mobile, it's hidden and accessible via a hamburger menu that opens a fixed overlay with backdrop. The sidebar's `onNavigate` callback auto-closes it after tapping a nav link.
+
 ## Due-Date Reminders
 
-`src/services/due-date-reminder-actions.ts` checks for overdue and due-soon tasks, sends notifications with 24h deduplication. Triggered two ways: fire-and-forget from the dashboard page load, and via `GET /api/cron/due-reminders` (protected by optional `CRON_SECRET` env var).
+`src/services/due-date-reminder-actions.ts` checks for overdue and due-soon tasks, sends in-app notifications and emails with 24h deduplication. Triggered two ways: fire-and-forget from the dashboard page load, and via `GET /api/cron/due-reminders` (protected by optional `CRON_SECRET` env var).
 
 ## Style
 
 No third-party UI component library. Everything is custom Tailwind with a zinc color palette. Icons from `lucide-react`. Geist font family via Next.js.
+
+## Environment Variables
+
+Required: `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`
+
+Optional: `DIRECT_URL` (Neon direct connection), `RESEND_API_KEY` and `EMAIL_FROM` (email notifications), `CRON_SECRET` (due-date cron endpoint auth).

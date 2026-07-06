@@ -18,6 +18,7 @@ import { getTimeEntries } from "@/services/time-tracking-actions";
 import { TaskChecklist } from "@/components/features/task-checklist";
 import { getSubtasks } from "@/services/subtask-actions";
 import { getTasksByProject } from "@/services/task-actions";
+import { isAIAvailable } from "@/services/ai-actions";
 
 export default async function TaskDetailPage({
   params,
@@ -33,7 +34,7 @@ export default async function TaskDetailPage({
 
   if (!task) notFound();
 
-  const [sprints, attachments, taskLabels, projectLabels, dependencies, timeEntries, subtasks, projectTasks] =
+  const [sprints, attachments, taskLabels, projectLabels, dependencies, timeEntries, subtasks, projectTasks, aiEnabled] =
     await Promise.all([
       getSprintsByProject(task.projectId),
       getAttachments(id),
@@ -43,6 +44,7 @@ export default async function TaskDetailPage({
       getTimeEntries(id),
       getSubtasks(id),
       getTasksByProject(task.projectId),
+      isAIAvailable(),
     ]);
 
   const members =
@@ -70,7 +72,7 @@ export default async function TaskDetailPage({
         currentUserRole={session?.user?.role ?? "DEVELOPER"}
       />
 
-      <TaskChecklist taskId={task.id} subtasks={subtasks} />
+      <TaskChecklist taskId={task.id} subtasks={subtasks} aiEnabled={aiEnabled} />
 
       <TaskDependencies
         taskId={task.id}

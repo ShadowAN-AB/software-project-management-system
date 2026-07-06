@@ -101,7 +101,7 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
       {/* Workload Heatmap */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Capacity Overview
           </h3>
         </CardHeader>
@@ -217,7 +217,7 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
       {/* Priority Breakdown */}
       <Card>
         <CardHeader>
-          <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wide">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Priority Breakdown
           </h3>
         </CardHeader>
