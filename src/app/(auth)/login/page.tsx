@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { login } from "@/services/auth-actions";
@@ -10,6 +10,20 @@ import { FolderKanban, CheckCircle2 } from "lucide-react";
 import type { ActionResult } from "@/types";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+          <div className="h-8 w-8 border-2 border-zinc-300 border-t-zinc-900 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "true";
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(

@@ -10,6 +10,7 @@ import type { TaskStatus } from "@prisma/client";
 import { createNotification } from "@/services/notification-actions";
 import { eventBus } from "@/lib/event-bus";
 import type { SSEFrame } from "@/lib/sse-events";
+import { sendTaskAssignedEmail, sendTaskStatusEmail, sendCommentEmail } from "@/lib/email";
 
 export async function getTasksByProject(projectId: string) {
   const session = await auth();
@@ -131,6 +132,14 @@ export async function createTask(
       message: `${session.user.name} assigned you "${task.title}"`,
       link: `/tasks/${task.id}`,
     });
+
+    const [assignee, project] = await Promise.all([
+      prisma.user.findUnique({ where: { id: task.assigneeId }, select: { email: true } }),
+      prisma.project.findUnique({ where: { id: parsed.data.projectId }, select: { name: true } }),
+    ]);
+    if (assignee?.email && project) {
+      await sendTaskAssignedEmail(assignee.email, session.user.name ?? "Someone", task.title, task.id, project.name);
+    }
   }
 
   eventBus.emit(`project:${parsed.data.projectId}`, {
@@ -191,6 +200,14 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
       message: `${session.user.name} moved "${task.title}" to ${status.replace("_", " ")}`,
       link: `/tasks/${taskId}`,
     });
+
+    const [assignee, project] = await Promise.all([
+      prisma.user.findUnique({ where: { id: task.assigneeId }, select: { email: true } }),
+      prisma.project.findUnique({ where: { id: task.projectId }, select: { name: true } }),
+    ]);
+    if (assignee?.email && project) {
+      await sendTaskStatusEmail(assignee.email, session.user.name ?? "Someone", task.title, taskId, previousTask?.status ?? status, status, project.name);
+    }
   }
 
   eventBus.emit(
@@ -239,6 +256,16 @@ export async function updateTask(
     },
   });
 
+  if (data.assigneeId && data.assigneeId !== session.user.id) {
+    const [assignee, project] = await Promise.all([
+      prisma.user.findUnique({ where: { id: data.assigneeId }, select: { email: true } }),
+      prisma.project.findUnique({ where: { id: task.projectId }, select: { name: true } }),
+    ]);
+    if (assignee?.email && project) {
+      await sendTaskAssignedEmail(assignee.email, session.user.name ?? "Someone", task.title, taskId, project.name);
+    }
+  }
+
   eventBus.emit(
     [`project:${task.projectId}`, `task:${taskId}`],
     {
@@ -272,6 +299,64 @@ export async function deleteTask(taskId: string) {
   } as SSEFrame);
 
   revalidatePath(`/projects/${task.projectId}`);
+  return { success: true, data: undefined };
+}
+
+export async function bulkUpdateTasks(
+  projectId: string,
+  taskIds: string[],
+  updates: { status?: TaskStatus; priority?: string; assigneeId?: string | null }
+) {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
+  if (taskIds.length === 0) return { success: false, error: "No tasks selected" };
+  if (taskIds.length > 50) return { success: false, error: "Maximum 50 tasks at once" };
+
+  await prisma.task.updateMany({
+    where: { id: { in: taskIds }, projectId },
+    data: {
+      ...(updates.status !== undefined ? { status: updates.status } : {}),
+      ...(updates.priority !== undefined ? { priority: updates.priority as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" } : {}),
+      ...(updates.assigneeId !== undefined ? { assigneeId: updates.assigneeId || null } : {}),
+    },
+  });
+
+  eventBus.emit(`project:${projectId}`, {
+    type: "task:bulkUpdated",
+    _actorId: session.user.id,
+    taskIds,
+    changes: updates,
+  } as SSEFrame);
+
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true, data: undefined };
+}
+
+export async function bulkDeleteTasks(projectId: string, taskIds: string[]) {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
+  if (taskIds.length === 0) return { success: false, error: "No tasks selected" };
+  if (taskIds.length > 50) return { success: false, error: "Maximum 50 tasks at once" };
+
+  await prisma.task.deleteMany({
+    where: { id: { in: taskIds }, projectId },
+  });
+
+  eventBus.emit(`project:${projectId}`, {
+    type: "task:bulkDeleted",
+    _actorId: session.user.id,
+    taskIds,
+  } as SSEFrame);
+
+  revalidatePath(`/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -323,6 +408,18 @@ export async function addComment(
       message: `${session.user.name} commented on "${task?.title}"`,
       link: `/tasks/${taskId}`,
     });
+  }
+
+  if (notifyIds.size > 0 && task) {
+    const [usersToEmail, project] = await Promise.all([
+      prisma.user.findMany({ where: { id: { in: [...notifyIds] } }, select: { email: true } }),
+      prisma.project.findUnique({ where: { id: task.projectId }, select: { name: true } }),
+    ]);
+    for (const u of usersToEmail) {
+      if (u.email) {
+        await sendCommentEmail(u.email, session.user.name ?? "Someone", task.title, taskId, content.slice(0, 200), project?.name ?? "");
+      }
+    }
   }
 
   revalidatePath(`/projects/${task?.projectId}`);

@@ -5,9 +5,9 @@ import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/ui/badge";
 import { Timer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { KanbanBoard } from "@/components/features/kanban-board";
 import { CreateTaskForm } from "@/components/features/create-task-form";
 import { ProjectOverview } from "@/components/features/project-overview";
+import { ProjectViewSwitcher } from "@/components/features/project-view-switcher";
 import { TeamManagement } from "@/components/features/team-management";
 import { ExportCsvButton } from "@/components/features/export-csv-button";
 
@@ -38,10 +38,10 @@ export default async function ProjectDetailPage({
         Back to projects
       </Link>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{project.name}</h1>
             <StatusBadge status={project.status} />
           </div>
           <p className="text-sm text-gray-500 mt-1 font-mono">{project.key}</p>
@@ -56,7 +56,7 @@ export default async function ProjectDetailPage({
           {canManage && (
             <Link
               href={`/sprints/new?projectId=${project.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
             >
               <Timer className="h-4 w-4" />
               New Sprint
@@ -75,11 +75,13 @@ export default async function ProjectDetailPage({
         sprints={project.sprints}
       />
 
-      {/* Kanban Board */}
-      <KanbanBoard
+      {/* Kanban / Gantt View */}
+      <ProjectViewSwitcher
         tasks={project.tasks}
+        sprints={project.sprints}
         projectId={project.id}
         currentUserId={session?.user?.id ?? ""}
+        members={project.members.map((m) => ({ id: m.user.id, name: m.user.name }))}
       />
 
       {/* Team Members */}

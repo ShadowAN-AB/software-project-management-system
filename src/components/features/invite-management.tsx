@@ -141,7 +141,7 @@ export function InviteManagement({
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full h-10 text-sm rounded-lg border border-zinc-200 px-3 bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                className="w-full h-10 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               >
                 <option value="ADMIN">Admin</option>
                 <option value="PROJECT_MANAGER">Project Manager</option>

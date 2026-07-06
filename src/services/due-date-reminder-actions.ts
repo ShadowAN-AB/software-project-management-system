@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/services/notification-actions";
+import { sendDueSoonEmail, sendOverdueEmail } from "@/lib/email";
 
 export async function checkDueDateReminders() {
   const now = new Date();
@@ -21,7 +22,8 @@ export async function checkDueDateReminders() {
       title: true,
       dueDate: true,
       assigneeId: true,
-      project: { select: { key: true } },
+      assignee: { select: { email: true } },
+      project: { select: { key: true, name: true } },
     },
   });
 
@@ -37,7 +39,8 @@ export async function checkDueDateReminders() {
       title: true,
       dueDate: true,
       assigneeId: true,
-      project: { select: { key: true } },
+      assignee: { select: { email: true } },
+      project: { select: { key: true, name: true } },
     },
   });
 
@@ -82,6 +85,9 @@ export async function checkDueDateReminders() {
       message: `"${task.title}" is ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`,
       link: `/tasks/${task.id}`,
     });
+    if (task.assignee?.email) {
+      await sendOverdueEmail(task.assignee.email, task.title, task.id, task.dueDate!.toLocaleDateString(), task.project.name);
+    }
     sent++;
   }
 
@@ -99,6 +105,9 @@ export async function checkDueDateReminders() {
       message: `"${task.title}" is due ${isToday ? "today" : "tomorrow"}`,
       link: `/tasks/${task.id}`,
     });
+    if (task.assignee?.email) {
+      await sendDueSoonEmail(task.assignee.email, task.title, task.id, task.dueDate!.toLocaleDateString(), task.project.name);
+    }
     sent++;
   }
 

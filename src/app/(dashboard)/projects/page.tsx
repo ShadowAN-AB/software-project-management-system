@@ -15,7 +15,7 @@ export default async function ProjectsPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Projects
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
@@ -39,7 +39,7 @@ export default async function ProjectsPage() {
             <div className="h-12 w-12 rounded-xl bg-zinc-100 flex items-center justify-center mb-4">
               <FolderKanban className="h-6 w-6 text-zinc-400" strokeWidth={1.75} />
             </div>
-            <p className="text-sm font-medium text-zinc-900">No projects yet</p>
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">No projects yet</p>
             <p className="text-xs text-zinc-400 mt-1">
               Create your first project to get started
             </p>
@@ -62,7 +62,7 @@ export default async function ProjectsPage() {
                 <CardContent>
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-zinc-900 text-[15px]">
+                      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-[15px]">
                         {project.name}
                       </h3>
                       <span className="text-xs text-zinc-400 font-mono">
@@ -76,7 +76,7 @@ export default async function ProjectsPage() {
                       {project.description}
                     </p>
                   )}
-                  <div className="flex items-center justify-between text-xs text-zinc-400 pt-3 border-t border-zinc-100">
+                  <div className="flex items-center justify-between text-xs text-zinc-400 pt-3 border-t border-zinc-100 dark:border-zinc-700">
                     <span className="flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5" strokeWidth={1.75} />
                       {project.members.length} member

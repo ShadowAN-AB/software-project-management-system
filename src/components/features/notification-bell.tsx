@@ -105,10 +105,10 @@ export function NotificationBell({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[380px] bg-white rounded-xl shadow-lg border border-zinc-200 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-[380px] bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-            <h3 className="text-sm font-semibold text-zinc-900">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-700">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
               Notifications
             </h3>
             {localUnreadCount > 0 && (
@@ -133,8 +133,8 @@ export function NotificationBell({
               localNotifications.slice(0, 20).map((n) => (
                 <div
                   key={n.id}
-                  className={`flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors border-b border-zinc-50 last:border-0 ${
-                    !n.read ? "bg-blue-50/30" : ""
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors border-b border-zinc-50 dark:border-zinc-700/50 last:border-0 ${
+                    !n.read ? "bg-blue-50/30 dark:bg-blue-500/10" : ""
                   }`}
                 >
                   <div
@@ -150,12 +150,12 @@ export function NotificationBell({
                           setOpen(false);
                           if (!n.read) handleMarkRead(n.id);
                         }}
-                        className="text-sm text-zinc-900 hover:text-blue-600 transition-colors line-clamp-2"
+                        className="text-sm text-zinc-900 dark:text-zinc-100 hover:text-blue-600 transition-colors line-clamp-2"
                       >
                         {n.message}
                       </Link>
                     ) : (
-                      <p className="text-sm text-zinc-900 line-clamp-2">
+                      <p className="text-sm text-zinc-900 dark:text-zinc-100 line-clamp-2">
                         {n.message}
                       </p>
                     )}
@@ -181,7 +181,7 @@ export function NotificationBell({
 
           {/* Footer */}
           {localNotifications.length > 0 && (
-            <div className="border-t border-zinc-100 px-4 py-2.5">
+            <div className="border-t border-zinc-100 dark:border-zinc-700 px-4 py-2.5">
               <Link
                 href="/notifications"
                 onClick={() => setOpen(false)}

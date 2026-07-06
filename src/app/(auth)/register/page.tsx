@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { Suspense, useActionState, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { register } from "@/services/auth-actions";
@@ -24,6 +24,20 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+          <div className="h-8 w-8 border-2 border-zinc-300 border-t-zinc-900 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [invite, setInvite] = useState<{

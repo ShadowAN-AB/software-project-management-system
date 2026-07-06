@@ -110,8 +110,8 @@ export function TeamManagement({
 
       {/* Add member picker */}
       {showPicker && canManage && (
-        <div className="px-6 pb-4 border-b border-zinc-100">
-          <div className="bg-zinc-50 rounded-lg p-4 space-y-3">
+        <div className="px-6 pb-4 border-b border-zinc-100 dark:border-zinc-700">
+          <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-zinc-600">
                 Role in project:
@@ -119,7 +119,7 @@ export function TeamManagement({
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                className="text-xs font-medium rounded-md border border-zinc-200 px-2 py-1 bg-white"
+                className="text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1 bg-white dark:bg-zinc-900 dark:text-zinc-100"
               >
                 <option value="DEVELOPER">Developer</option>
                 <option value="TESTER">Tester</option>

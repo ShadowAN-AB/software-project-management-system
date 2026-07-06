@@ -7,6 +7,8 @@ import { projectSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ActionResult } from "@/types";
+import { sendProjectAddedEmail } from "@/lib/email";
+import { PROJECT_TEMPLATES } from "@/lib/project-templates";
 
 export async function getProjects() {
   const session = await auth();
@@ -117,6 +119,95 @@ export async function createProject(
   redirect(`/projects/${project.id}`);
 }
 
+export async function createProjectFromTemplate(
+  _prevState: ActionResult | null,
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+    return { success: false, error: "Only admins and PMs can create projects" };
+  }
+
+  const parsed = projectSchema.safeParse({
+    name: formData.get("name"),
+    key: formData.get("key"),
+    description: formData.get("description"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.errors[0].message };
+  }
+
+  const templateId = formData.get("templateId") as string;
+  const template = PROJECT_TEMPLATES.find((t) => t.id === templateId);
+  if (!template) {
+    return { success: false, error: "Template not found" };
+  }
+
+  const existing = await prisma.project.findUnique({
+    where: { key: parsed.data.key },
+  });
+  if (existing) {
+    return { success: false, error: "Project key already exists" };
+  }
+
+  const project = await prisma.project.create({
+    data: {
+      name: parsed.data.name,
+      key: parsed.data.key,
+      description: parsed.data.description || null,
+      startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
+      endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
+      members: {
+        create: {
+          userId: session.user.id,
+          role: session.user.role,
+        },
+      },
+    },
+  });
+
+  if (template.labels.length > 0) {
+    await prisma.label.createMany({
+      data: template.labels.map((l) => ({
+        name: l.name,
+        color: l.color,
+        projectId: project.id,
+      })),
+    });
+  }
+
+  if (template.tasks.length > 0) {
+    await prisma.task.createMany({
+      data: template.tasks.map((t, i) => ({
+        title: t.title,
+        description: t.description ?? null,
+        status: t.status,
+        priority: t.priority,
+        type: t.type,
+        projectId: project.id,
+        creatorId: session.user.id,
+        order: i + 1,
+      })),
+    });
+  }
+
+  await prisma.activityLog.create({
+    data: {
+      action: "PROJECT_CREATED",
+      details: `Created project "${project.name}" from template "${template.name}"`,
+      userId: session.user.id,
+      projectId: project.id,
+    },
+  });
+
+  revalidatePath("/dashboard");
+  redirect(`/projects/${project.id}`);
+}
+
 export async function updateProjectStatus(projectId: string, status: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
@@ -160,6 +251,14 @@ export async function addProjectMember(
       role: role as "ADMIN" | "PROJECT_MANAGER" | "DEVELOPER" | "TESTER",
     },
   });
+
+  const [addedUser, project] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+  ]);
+  if (addedUser?.email && project) {
+    await sendProjectAddedEmail(addedUser.email, session.user.name ?? "Someone", project.name, projectId);
+  }
 
   revalidatePath(`/projects/${projectId}`);
   return { success: true, data: undefined };

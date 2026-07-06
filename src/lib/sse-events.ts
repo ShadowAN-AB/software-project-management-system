@@ -31,6 +31,15 @@ export type SSEEvent =
       taskId: string;
     }
   | {
+      type: "task:bulkUpdated";
+      taskIds: string[];
+      changes: Record<string, unknown>;
+    }
+  | {
+      type: "task:bulkDeleted";
+      taskIds: string[];
+    }
+  | {
       type: "comment:added";
       taskId: string;
       comment: {

@@ -84,7 +84,7 @@ export function SearchCommand() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 text-sm text-zinc-400 hover:border-zinc-300 hover:text-zinc-500 transition-all bg-white"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600 hover:text-zinc-500 transition-all bg-white dark:bg-zinc-800"
       >
         <Search className="h-3.5 w-3.5" />
         <span>Search...</span>
@@ -105,9 +105,9 @@ export function SearchCommand() {
 
       {/* Modal */}
       <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-lg z-50">
-        <div className="bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           {/* Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-700">
             <Search
               className={`h-4.5 w-4.5 flex-shrink-0 ${
                 loading ? "text-blue-500 animate-pulse" : "text-zinc-400"
@@ -119,7 +119,7 @@ export function SearchCommand() {
               value={query}
               onChange={(e) => handleChange(e.target.value)}
               placeholder="Search projects, tasks, users..."
-              className="flex-1 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none bg-transparent"
+              className="flex-1 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none bg-transparent"
             />
             <button
               onClick={() => setOpen(false)}
@@ -146,21 +146,21 @@ export function SearchCommand() {
 
               {results?.projects && results.projects.length > 0 && (
                 <div>
-                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50">
+                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50 dark:bg-zinc-900">
                     Projects
                   </p>
                   {results.projects.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => navigate(`/projects/${p.id}`)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors text-left"
                     >
                       <FolderKanban
                         className="h-4 w-4 text-zinc-400 flex-shrink-0"
                         strokeWidth={1.75}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-zinc-900 truncate">
+                        <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
                           {p.name}
                         </p>
                         <p className="text-xs text-zinc-400 font-mono">
@@ -175,21 +175,21 @@ export function SearchCommand() {
 
               {results?.tasks && results.tasks.length > 0 && (
                 <div>
-                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50">
+                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50 dark:bg-zinc-900">
                     Tasks
                   </p>
                   {results.tasks.map((t) => (
                     <button
                       key={t.id}
                       onClick={() => navigate(`/tasks/${t.id}`)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors text-left"
                     >
                       <ListTodo
                         className="h-4 w-4 text-zinc-400 flex-shrink-0"
                         strokeWidth={1.75}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-zinc-900 truncate">
+                        <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
                           {t.title}
                         </p>
                         <p className="text-xs text-zinc-400 font-mono">
@@ -207,21 +207,21 @@ export function SearchCommand() {
 
               {results?.users && results.users.length > 0 && (
                 <div>
-                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50">
+                  <p className="px-4 py-2 text-xs font-medium text-zinc-500 uppercase tracking-wide bg-zinc-50 dark:bg-zinc-900">
                     Users
                   </p>
                   {results.users.map((u) => (
                     <button
                       key={u.id}
                       onClick={() => navigate("/admin")}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors text-left"
                     >
                       <User
                         className="h-4 w-4 text-zinc-400 flex-shrink-0"
                         strokeWidth={1.75}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-zinc-900 truncate">
+                        <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate">
                           {u.name}
                         </p>
                         <p className="text-xs text-zinc-400">{u.email}</p>
@@ -237,7 +237,7 @@ export function SearchCommand() {
           )}
 
           {/* Footer hint */}
-          <div className="px-4 py-2 border-t border-zinc-100 flex items-center gap-4 text-xs text-zinc-400">
+          <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-700 flex items-center gap-4 text-xs text-zinc-400">
             <span>↑↓ Navigate</span>
             <span>↵ Open</span>
             <span>esc Close</span>

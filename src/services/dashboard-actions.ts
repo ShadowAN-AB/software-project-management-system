@@ -79,6 +79,9 @@ export async function getDashboardStats() {
 }
 
 export async function getAllUsers() {
+  const session = await auth();
+  if (!session?.user) return [];
+
   return prisma.user.findMany({
     select: { id: true, name: true, email: true, role: true },
     orderBy: { name: "asc" },

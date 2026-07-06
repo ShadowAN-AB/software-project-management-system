@@ -103,7 +103,7 @@ export function TaskLabels({
 
       {/* Picker dropdown */}
       {showPicker && (
-        <div className="border border-zinc-200 rounded-lg p-2 bg-white shadow-sm space-y-1">
+        <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 bg-white dark:bg-zinc-800 shadow-sm space-y-1">
           {available.length > 0 ? (
             available.map((label) => (
               <button

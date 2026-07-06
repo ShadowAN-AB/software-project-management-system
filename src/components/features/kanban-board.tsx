@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useMemo } from "react";
-import { updateTaskStatus } from "@/services/task-actions";
+import { updateTaskStatus, bulkUpdateTasks, bulkDeleteTasks } from "@/services/task-actions";
 import { PriorityBadge, DueDateBadge } from "@/components/ui/badge";
 import {
   User,
@@ -13,6 +13,10 @@ import {
   Filter,
   X,
   SortAsc,
+  Trash2,
+  ArrowRight,
+  UserPlus,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import type { TaskStatus } from "@prisma/client";
@@ -81,10 +85,12 @@ export function KanbanBoard({
   tasks: initialTasks,
   projectId,
   currentUserId,
+  members = [],
 }: {
   tasks: Task[];
   projectId: string;
   currentUserId: string;
+  members?: { id: string; name: string }[];
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
@@ -101,6 +107,11 @@ export function KanbanBoard({
   });
   const [sortBy, setSortBy] = useState<SortOption>("none");
   const [showFilters, setShowFilters] = useState(false);
+
+  // Bulk selection state
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  const [bulkPending, setBulkPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEventStream({
     channels: [`project:${projectId}`],
@@ -133,6 +144,28 @@ export function KanbanBoard({
       "task:deleted": (event: SSEFrame) => {
         if (event.type !== "task:deleted") return;
         setTasks((prev) => prev.filter((t) => t.id !== event.taskId));
+        setSelectedTasks((prev) => {
+          const next = new Set(prev);
+          next.delete(event.taskId);
+          return next;
+        });
+      },
+      "task:bulkUpdated": (event: SSEFrame) => {
+        if (event.type !== "task:bulkUpdated") return;
+        setTasks((prev) =>
+          prev.map((t) =>
+            event.taskIds.includes(t.id) ? { ...t, ...event.changes } : t
+          )
+        );
+      },
+      "task:bulkDeleted": (event: SSEFrame) => {
+        if (event.type !== "task:bulkDeleted") return;
+        setTasks((prev) => prev.filter((t) => !event.taskIds.includes(t.id)));
+        setSelectedTasks((prev) => {
+          const next = new Set(prev);
+          for (const id of event.taskIds) next.delete(id);
+          return next;
+        });
       },
     },
   });
@@ -146,7 +179,7 @@ export function KanbanBoard({
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [tasks]);
 
-  const labels = useMemo(() => {
+  const labelOptions = useMemo(() => {
     const map = new Map<string, { name: string; color: string }>();
     for (const t of tasks) {
       for (const tl of t.labels ?? []) {
@@ -213,6 +246,77 @@ export function KanbanBoard({
     setSortBy("none");
   }
 
+  function toggleTask(taskId: string) {
+    setSelectedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedTasks(new Set(filteredTasks.map((t) => t.id)));
+  }
+
+  function clearSelection() {
+    setSelectedTasks(new Set());
+    setConfirmDelete(false);
+  }
+
+  async function handleBulkStatus(status: TaskStatus) {
+    setBulkPending(true);
+    const ids = [...selectedTasks];
+    setTasks((prev) => prev.map((t) => (selectedTasks.has(t.id) ? { ...t, status } : t)));
+    const result = await bulkUpdateTasks(projectId, ids, { status });
+    if (!result.success) {
+      setTasks(initialTasks);
+    }
+    clearSelection();
+    setBulkPending(false);
+  }
+
+  async function handleBulkPriority(priority: string) {
+    setBulkPending(true);
+    const ids = [...selectedTasks];
+    setTasks((prev) => prev.map((t) => (selectedTasks.has(t.id) ? { ...t, priority } : t)));
+    const result = await bulkUpdateTasks(projectId, ids, { priority });
+    if (!result.success) {
+      setTasks(initialTasks);
+    }
+    clearSelection();
+    setBulkPending(false);
+  }
+
+  async function handleBulkAssignee(assigneeId: string | null) {
+    setBulkPending(true);
+    const ids = [...selectedTasks];
+    const assignee = assigneeId ? members.find((m) => m.id === assigneeId) ?? null : null;
+    setTasks((prev) =>
+      prev.map((t) =>
+        selectedTasks.has(t.id) ? { ...t, assigneeId: assigneeId, assignee } : t
+      )
+    );
+    const result = await bulkUpdateTasks(projectId, ids, { assigneeId });
+    if (!result.success) {
+      setTasks(initialTasks);
+    }
+    clearSelection();
+    setBulkPending(false);
+  }
+
+  async function handleBulkDelete() {
+    setBulkPending(true);
+    const ids = [...selectedTasks];
+    setTasks((prev) => prev.filter((t) => !selectedTasks.has(t.id)));
+    const result = await bulkDeleteTasks(projectId, ids);
+    if (!result.success) {
+      setTasks(initialTasks);
+    }
+    clearSelection();
+    setBulkPending(false);
+  }
+
   function handleDragStart(taskId: string) {
     setDraggedTask(taskId);
     draggedTaskRef.current = taskId;
@@ -261,6 +365,8 @@ export function KanbanBoard({
     draggedTaskRef.current = null;
     setDragOverColumn(null);
   }
+
+  const selectionMode = selectedTasks.size > 0;
 
   return (
     <div>
@@ -357,7 +463,7 @@ export function KanbanBoard({
             </div>
 
             {/* Label */}
-            {labels.length > 0 && (
+            {labelOptions.length > 0 && (
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                   Label
@@ -368,7 +474,7 @@ export function KanbanBoard({
                   className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 min-w-[120px]"
                 >
                   <option value="">All</option>
-                  {labels.map(([id, { name }]) => (
+                  {labelOptions.map(([id, { name }]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}
                 </select>
@@ -421,6 +527,110 @@ export function KanbanBoard({
         </div>
       )}
 
+      {/* Bulk actions toolbar */}
+      {selectionMode && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl">
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300 mr-1">
+            {selectedTasks.size} selected
+          </span>
+          <button
+            onClick={selectAllVisible}
+            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-md"
+          >
+            Select all ({filteredTasks.length})
+          </button>
+          <button
+            onClick={clearSelection}
+            className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-md"
+          >
+            Clear
+          </button>
+
+          <div className="h-4 w-px bg-blue-200 dark:bg-blue-800 mx-1" />
+
+          {/* Move to status */}
+          <div className="flex items-center gap-1">
+            <ArrowRight className="h-3.5 w-3.5 text-blue-500" />
+            <select
+              disabled={bulkPending}
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkStatus(e.target.value as TaskStatus); e.target.value = ""; }}
+              className="text-xs px-2 py-1 rounded-md border border-blue-200 dark:border-blue-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+            >
+              <option value="" disabled>Move to...</option>
+              {COLUMNS.map((c) => (
+                <option key={c.status} value={c.status}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Priority */}
+          <select
+            disabled={bulkPending}
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) handleBulkPriority(e.target.value); e.target.value = ""; }}
+            className="text-xs px-2 py-1 rounded-md border border-blue-200 dark:border-blue-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+          >
+            <option value="" disabled>Priority...</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+
+          {/* Assignee */}
+          {members.length > 0 && (
+            <div className="flex items-center gap-1">
+              <UserPlus className="h-3.5 w-3.5 text-blue-500" />
+              <select
+                disabled={bulkPending}
+                defaultValue=""
+                onChange={(e) => { handleBulkAssignee(e.target.value || null); e.target.value = ""; }}
+                className="text-xs px-2 py-1 rounded-md border border-blue-200 dark:border-blue-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+              >
+                <option value="" disabled>Assign to...</option>
+                <option value="">Unassign</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="h-4 w-px bg-blue-200 dark:bg-blue-800 mx-1" />
+
+          {/* Delete */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              <span className="text-xs text-red-600 dark:text-red-400">Delete {selectedTasks.size}?</span>
+              <button
+                disabled={bulkPending}
+                onClick={handleBulkDelete}
+                className="text-xs px-2 py-1 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs px-2 py-1 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              disabled={bulkPending}
+              onClick={() => setConfirmDelete(true)}
+              className="inline-flex items-center gap-1 text-xs px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Board columns */}
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((col) => {
@@ -461,19 +671,42 @@ export function KanbanBoard({
               <div className="px-2 pb-2 space-y-2 min-h-[80px]">
                 {columnTasks.map((task) => {
                   const TypeIcon = TYPE_ICONS[task.type] || CheckSquare;
+                  const isSelected = selectedTasks.has(task.id);
                   return (
                     <div
                       key={task.id}
-                      draggable
+                      draggable={!selectionMode}
                       onDragStart={() => handleDragStart(task.id)}
                       onDragEnd={handleDragEnd}
-                      className={`bg-white dark:bg-zinc-800 p-3 rounded-lg border border-zinc-200/80 dark:border-zinc-700 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600 transition-all duration-150 ${
+                      className={`bg-white dark:bg-zinc-800 p-3 rounded-lg border shadow-sm transition-all duration-150 ${
+                        isSelected
+                          ? "border-blue-400 dark:border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800"
+                          : "border-zinc-200/80 dark:border-zinc-700 hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-600"
+                      } ${
+                        selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
+                      } ${
                         draggedTask === task.id
                           ? "opacity-40 scale-[0.97] rotate-1"
                           : ""
                       }`}
+                      onClick={selectionMode ? () => toggleTask(task.id) : undefined}
                     >
                       <div className="flex items-start gap-2 mb-2.5">
+                        {/* Checkbox */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}
+                          className={`mt-0.5 flex-shrink-0 h-4 w-4 rounded border-2 transition-colors flex items-center justify-center ${
+                            isSelected
+                              ? "bg-blue-500 border-blue-500 text-white"
+                              : "border-zinc-300 dark:border-zinc-600 hover:border-blue-400"
+                          }`}
+                        >
+                          {isSelected && (
+                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
                         <TypeIcon
                           className={`h-3.5 w-3.5 mt-0.5 flex-shrink-0 ${
                             task.type === "BUG"
@@ -487,7 +720,7 @@ export function KanbanBoard({
                         <Link
                           href={`/tasks/${task.id}`}
                           className="text-sm font-medium text-zinc-900 dark:text-zinc-100 leading-snug hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); }}
                         >
                           {task.title}
                         </Link>

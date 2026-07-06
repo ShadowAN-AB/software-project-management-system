@@ -48,9 +48,11 @@ function Avatar({ name, collapsed }: { name: string; collapsed: boolean }) {
 export function Sidebar({
   userName,
   userRole,
+  onNavigate,
 }: {
   userName: string;
   userRole: string;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -100,6 +102,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
                 isActive
                   ? "bg-white/10 text-white"

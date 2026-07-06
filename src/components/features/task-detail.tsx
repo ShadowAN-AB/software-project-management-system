@@ -108,7 +108,7 @@ export function TaskDetail({
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full text-xl font-bold text-zinc-900 bg-transparent border-b-2 border-blue-500 focus:outline-none pb-1"
+                className="w-full text-xl font-bold text-zinc-900 dark:text-zinc-100 bg-transparent border-b-2 border-blue-500 focus:outline-none pb-1"
                 autoFocus
               />
             ) : (
@@ -195,8 +195,8 @@ export function TaskDetail({
                 onClick={() => handleStatusChange(s)}
                 className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all duration-150 ${
                   task.status === s
-                    ? "bg-zinc-900 text-white shadow-sm"
-                    : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700"
+                    ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-sm"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300"
                 }`}
               >
                 {s.replace("_", " ")}
@@ -215,7 +215,7 @@ export function TaskDetail({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-zinc-300 px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 dark:bg-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               placeholder="Add a description..."
             />
           ) : (
@@ -243,7 +243,7 @@ export function TaskDetail({
             <select
               value={task.priority}
               onChange={(e) => handleFieldUpdate("priority", e.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             >
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
@@ -261,7 +261,7 @@ export function TaskDetail({
             <select
               value={task.type}
               onChange={(e) => handleFieldUpdate("type", e.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             >
               <option value="TASK">Task</option>
               <option value="FEATURE">Feature</option>
@@ -281,7 +281,7 @@ export function TaskDetail({
               onChange={(e) =>
                 handleFieldUpdate("assigneeId", e.target.value || null)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             >
               <option value="">Unassigned</option>
               {members.map((m) => (
@@ -303,7 +303,7 @@ export function TaskDetail({
               onChange={(e) =>
                 handleFieldUpdate("sprintId", e.target.value || null)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             >
               <option value="">No Sprint</option>
               {sprints
@@ -332,7 +332,7 @@ export function TaskDetail({
               onChange={(e) =>
                 handleFieldUpdate("dueDate", e.target.value || null)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             />
           </div>
         </div>

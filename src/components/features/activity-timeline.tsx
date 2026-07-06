@@ -88,7 +88,7 @@ export function ActivityTimeline({
           <select
             value={filterProject}
             onChange={(e) => setFilterProject(e.target.value)}
-            className="text-sm rounded-lg border border-zinc-200 px-3 py-1.5 bg-white hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            className="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 bg-white dark:bg-zinc-800 dark:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           >
             <option value="all">All Projects</option>
             {projects.map((p) => (
