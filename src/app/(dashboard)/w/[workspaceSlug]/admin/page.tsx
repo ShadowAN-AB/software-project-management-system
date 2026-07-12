@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { requireWorkspaceMember } from "@/lib/authorization";
 import { getAdminStats, getAdminUsers } from "@/services/admin-actions";
 import { getInvitations } from "@/services/invite-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -7,9 +8,16 @@ import { Users, FolderKanban, ListTodo, ShieldCheck } from "lucide-react";
 import { UserManagement } from "@/components/features/user-management";
 import { InviteManagement } from "@/components/features/invite-management";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
   const session = await auth();
-  if (session?.user?.role !== "ADMIN") redirect("/dashboard");
+  if (!session?.user) redirect("/login");
+  const ctx = await requireWorkspaceMember(workspaceSlug, session.user.id);
+  if (ctx.role !== "ADMIN") redirect(`/w/${workspaceSlug}/dashboard`);
 
   const [stats, users, invitations] = await Promise.all([
     getAdminStats(),

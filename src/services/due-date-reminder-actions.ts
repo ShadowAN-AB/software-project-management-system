@@ -23,7 +23,7 @@ export async function checkDueDateReminders() {
       dueDate: true,
       assigneeId: true,
       assignee: { select: { email: true } },
-      project: { select: { key: true, name: true } },
+      project: { select: { key: true, name: true, workspaceId: true } },
     },
   });
 
@@ -40,7 +40,7 @@ export async function checkDueDateReminders() {
       dueDate: true,
       assigneeId: true,
       assignee: { select: { email: true } },
-      project: { select: { key: true, name: true } },
+      project: { select: { key: true, name: true, workspaceId: true } },
     },
   });
 
@@ -80,6 +80,7 @@ export async function checkDueDateReminders() {
 
     await createNotification({
       userId: task.assigneeId!,
+      workspaceId: task.project.workspaceId,
       type: "TASK_OVERDUE",
       title: "Task Overdue",
       message: `"${task.title}" is ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`,
@@ -100,6 +101,7 @@ export async function checkDueDateReminders() {
 
     await createNotification({
       userId: task.assigneeId!,
+      workspaceId: task.project.workspaceId,
       type: "TASK_DUE_SOON",
       title: isToday ? "Task Due Today" : "Task Due Tomorrow",
       message: `"${task.title}" is due ${isToday ? "today" : "tomorrow"}`,

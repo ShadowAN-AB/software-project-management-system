@@ -19,12 +19,13 @@ import {
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { ThemeToggle } from "./theme-toggle";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 
-const baseNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/tasks", label: "My Tasks", icon: ListTodo },
-  { href: "/sprints", label: "Sprints", icon: Timer },
+const baseNavItems: { path: string; label: string; icon: typeof LayoutDashboard }[] = [
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/projects", label: "Projects", icon: FolderKanban },
+  { path: "/tasks", label: "My Tasks", icon: ListTodo },
+  { path: "/sprints", label: "Sprints", icon: Timer },
 ];
 
 function Avatar({ name, collapsed }: { name: string; collapsed: boolean }) {
@@ -49,25 +50,30 @@ function Avatar({ name, collapsed }: { name: string; collapsed: boolean }) {
 export function Sidebar({
   userName,
   userRole,
+  workspaceSlug,
+  workspaces,
   onNavigate,
 }: {
   userName: string;
   userRole: string;
+  workspaceSlug: string;
+  workspaces: { id: string; slug: string; name: string; role: string }[];
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const prefix = `/w/${workspaceSlug}`;
 
   const navItems = [
     ...baseNavItems,
-    { href: "/activity", label: "Activity", icon: Activity },
-    { href: "/reports", label: "Reports", icon: BarChart3 },
+    { path: "/activity", label: "Activity", icon: Activity },
+    { path: "/reports", label: "Reports", icon: BarChart3 },
     ...(["ADMIN", "PROJECT_MANAGER"].includes(userRole)
-      ? [{ href: "/workload", label: "Workload", icon: UsersRound }]
+      ? [{ path: "/workload", label: "Workload", icon: UsersRound }]
       : []),
-    { href: "/settings", label: "Settings", icon: Settings },
-    ...(userRole === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
-  ];
+    { path: "/settings", label: "Settings", icon: Settings },
+    ...(userRole === "ADMIN" ? [{ path: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+  ].map((item) => ({ ...item, href: `${prefix}${item.path}` }));
 
   return (
     <aside
@@ -75,23 +81,21 @@ export function Sidebar({
         collapsed ? "w-[68px]" : "w-[260px]"
       }`}
     >
-      {/* Logo */}
-      <div className="flex items-center justify-between h-16 px-4">
-        {!collapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center">
-              <FolderKanban className="h-4.5 w-4.5 text-zinc-950" strokeWidth={2} />
+      {/* Logo + workspace switcher */}
+      <div className="flex flex-col gap-2 px-3 pt-3 pb-1">
+        {!collapsed ? (
+          <Link href={`${prefix}/dashboard`} className="flex items-center gap-2.5 px-2 py-1">
+            <div className="h-7 w-7 rounded-md bg-white flex items-center justify-center">
+              <FolderKanban className="h-4 w-4 text-zinc-950" strokeWidth={2} />
             </div>
-            <span className="text-[15px] font-bold text-white tracking-tight">
-              PMS
-            </span>
+            <span className="text-[13px] font-bold text-white tracking-tight">PMS</span>
           </Link>
-        )}
-        {collapsed && (
-          <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center mx-auto">
-            <FolderKanban className="h-4.5 w-4.5 text-zinc-950" strokeWidth={2} />
+        ) : (
+          <div className="h-7 w-7 rounded-md bg-white flex items-center justify-center mx-auto">
+            <FolderKanban className="h-4 w-4 text-zinc-950" strokeWidth={2} />
           </div>
         )}
+        <WorkspaceSwitcher workspaces={workspaces} collapsed={collapsed} />
       </div>
 
       {/* Nav */}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { redirect } from "next/navigation";
 import {
   FolderKanban,
@@ -12,7 +13,10 @@ import {
 
 export default async function Home() {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  if (session?.user) {
+    const ctx = await resolveDefaultWorkspace(session.user.id);
+    redirect(ctx ? `/w/${ctx.workspaceSlug}/dashboard` : "/onboarding/create-workspace");
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-white">

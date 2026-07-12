@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { taskSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
@@ -16,8 +16,10 @@ import { removeAttachmentObjects } from "@/lib/supabase";
 export async function getTasksByProject(projectId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.task.findMany({
@@ -36,6 +38,8 @@ export async function getTasksByProject(projectId: string) {
 export async function getTask(id: string) {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
   const task = await prisma.task.findUnique({
     where: { id },
@@ -58,7 +62,7 @@ export async function getTask(id: string) {
 
   if (!task) return null;
 
-  const isMember = await requireProjectMember(task.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(task.projectId, session.user.id, ctx);
   if (!isMember) return null;
 
   return task;
@@ -70,10 +74,12 @@ export async function createTask(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = formData.get("projectId") as string;
   if (projectId) {
-    const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+    const isMember = await requireProjectMember(projectId, session.user.id, ctx);
     if (!isMember) return { success: false, error: "Not a member of this project" };
   }
 
@@ -127,6 +133,7 @@ export async function createTask(
   // Notify assignee
   if (task.assigneeId && task.assigneeId !== session.user.id) {
     await createNotification({
+      workspaceId: ctx.workspaceId,
       userId: task.assigneeId,
       type: "TASK_ASSIGNED",
       title: "Task Assigned",
@@ -160,17 +167,19 @@ export async function createTask(
     },
   });
 
-  revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${parsed.data.projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function updateTaskStatus(taskId: string, status: TaskStatus) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const taskProjectId = await getTaskProjectId(taskId);
   if (!taskProjectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const previousTask = await prisma.task.findUnique({
@@ -196,6 +205,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
   // Notify assignee of status change
   if (task.assigneeId && task.assigneeId !== session.user.id) {
     await createNotification({
+      workspaceId: ctx.workspaceId,
       userId: task.assigneeId,
       type: "TASK_STATUS_CHANGED",
       title: "Status Updated",
@@ -223,8 +233,8 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
     } as SSEFrame
   );
 
-  revalidatePath(`/projects/${task.projectId}`);
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: undefined };
 }
 
@@ -242,10 +252,12 @@ export async function updateTask(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const taskProjectId = await getTaskProjectId(taskId);
   if (!taskProjectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const task = await prisma.task.update({
@@ -278,18 +290,20 @@ export async function updateTask(
     } as SSEFrame
   );
 
-  revalidatePath(`/projects/${task.projectId}`);
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: undefined };
 }
 
 export async function deleteTask(taskId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const taskProjectId = await getTaskProjectId(taskId);
   if (!taskProjectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const attachments = await prisma.attachment.findMany({
@@ -307,7 +321,7 @@ export async function deleteTask(taskId: string) {
     taskId,
   } as SSEFrame);
 
-  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -318,8 +332,10 @@ export async function reorderTasks(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (orderedIds.length === 0) return { success: true, data: undefined };
@@ -355,7 +371,7 @@ export async function reorderTasks(
     orderedIds,
   } as SSEFrame);
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -366,8 +382,10 @@ export async function bulkUpdateTasks(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (taskIds.length === 0) return { success: false, error: "No tasks selected" };
@@ -389,15 +407,17 @@ export async function bulkUpdateTasks(
     changes: updates,
   } as SSEFrame);
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function bulkDeleteTasks(projectId: string, taskIds: string[]) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (taskIds.length === 0) return { success: false, error: "No tasks selected" };
@@ -420,7 +440,7 @@ export async function bulkDeleteTasks(projectId: string, taskIds: string[]) {
     taskIds,
   } as SSEFrame);
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -430,6 +450,8 @@ export async function addComment(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const taskId = formData.get("taskId") as string;
   const content = formData.get("content") as string;
@@ -438,7 +460,7 @@ export async function addComment(
 
   const commentProjectId = await getTaskProjectId(taskId);
   if (!commentProjectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(commentProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(commentProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const comment = await prisma.comment.create({
@@ -466,6 +488,7 @@ export async function addComment(
 
   for (const uid of notifyIds) {
     await createNotification({
+      workspaceId: ctx.workspaceId,
       userId: uid,
       type: "COMMENT_ADDED",
       title: "New Comment",
@@ -486,7 +509,7 @@ export async function addComment(
     }
   }
 
-  revalidatePath(`/projects/${task?.projectId}`);
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task?.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: undefined };
 }

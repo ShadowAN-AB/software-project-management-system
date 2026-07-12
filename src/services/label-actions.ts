@@ -2,15 +2,17 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember } from "@/lib/authorization";
+import { requireProjectMember , resolveDefaultWorkspace} from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 
 export async function getProjectLabels(projectId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.label.findMany({
@@ -27,8 +29,10 @@ export async function createLabel(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (!name.trim()) return { success: false, error: "Label name is required" };
@@ -42,22 +46,24 @@ export async function createLabel(
     data: { name: name.trim(), color, projectId },
   });
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function deleteLabel(labelId: string): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const label = await prisma.label.findUnique({ where: { id: labelId } });
   if (!label) return { success: false, error: "Label not found" };
 
-  const isMember = await requireProjectMember(label.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(label.projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   await prisma.label.delete({ where: { id: labelId } });
-  revalidatePath(`/projects/${label.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${label.projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -67,11 +73,13 @@ export async function addLabelToTask(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
   if (!task) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(task.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(task.projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const existing = await prisma.taskLabel.findUnique({
@@ -81,8 +89,8 @@ export async function addLabelToTask(
 
   await prisma.taskLabel.create({ data: { taskId, labelId } });
 
-  revalidatePath(`/tasks/${taskId}`);
-  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -92,28 +100,32 @@ export async function removeLabelFromTask(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
   if (!task) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(task.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(task.projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   await prisma.taskLabel.deleteMany({ where: { taskId, labelId } });
 
-  revalidatePath(`/tasks/${taskId}`);
-  revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function getTaskLabels(taskId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
   if (!task) return [];
 
-  const isMember = await requireProjectMember(task.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(task.projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.taskLabel.findMany({

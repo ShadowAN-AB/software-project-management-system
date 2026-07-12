@@ -2,17 +2,26 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 
 export async function getDashboardStats() {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = ctx.role === "ADMIN";
   const userId = session.user.id;
+  const workspaceId = ctx.workspaceId;
 
+  // Admin sees every project in the current workspace; non-admin sees only
+  // projects they explicitly belong to (still workspace-scoped).
   const projectWhere = isAdmin
-    ? {}
-    : { members: { some: { userId } } };
+    ? { workspaceId }
+    : { workspaceId, members: { some: { userId } } };
+  const projectFilter = isAdmin
+    ? { workspaceId }
+    : { workspaceId, members: { some: { userId } } };
 
   const [projectCount, taskStats, myTasks, recentActivity, activeSprints] =
     await Promise.all([
@@ -20,23 +29,23 @@ export async function getDashboardStats() {
 
       prisma.task.groupBy({
         by: ["status"],
-        where: isAdmin
-          ? {}
-          : { project: { members: { some: { userId } } } },
+        where: { project: projectFilter },
         _count: true,
       }),
 
       prisma.task.findMany({
-        where: { assigneeId: userId, status: { not: "DONE" } },
+        where: {
+          assigneeId: userId,
+          status: { not: "DONE" },
+          project: { workspaceId },
+        },
         include: { project: true },
         orderBy: { updatedAt: "desc" },
         take: 10,
       }),
 
       prisma.activityLog.findMany({
-        where: isAdmin
-          ? {}
-          : { project: { members: { some: { userId } } } },
+        where: { project: projectFilter },
         include: { user: true, project: true, task: true },
         orderBy: { createdAt: "desc" },
         take: 15,
@@ -45,7 +54,7 @@ export async function getDashboardStats() {
       prisma.sprint.findMany({
         where: {
           status: "ACTIVE",
-          project: isAdmin ? {} : { members: { some: { userId } } },
+          project: projectFilter,
         },
         include: {
           project: true,
@@ -81,9 +90,18 @@ export async function getDashboardStats() {
 export async function getAllUsers() {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  return prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { name: "asc" },
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+    orderBy: { user: { name: "asc" } },
   });
+  return members.map((m) => ({
+    id: m.user.id,
+    name: m.user.name,
+    email: m.user.email,
+    role: m.role,
+  }));
 }

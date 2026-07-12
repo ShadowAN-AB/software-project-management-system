@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAuth, requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
+import { requireAuth, requireProjectMember, getTaskProjectId, getSprintProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { generateText, generateJSON, isAIEnabled, aiErrorMessage, checkAIRateLimit } from "@/lib/ai";
 import { revalidatePath } from "next/cache";
@@ -24,6 +24,8 @@ export async function generateTaskDescription(
 ): Promise<ActionResult<string>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const trimmed = title.trim();
   if (trimmed.length < 3) {
@@ -61,11 +63,13 @@ export async function decomposeTask(
 ): Promise<ActionResult<{ created: number }>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   if (!isAIEnabled()) {
@@ -124,7 +128,7 @@ ${task.description ? `Description:\n${task.description}` : "(No description prov
     })),
   });
 
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: { created: cleaned.length } };
 }
 
@@ -133,11 +137,13 @@ export async function generateSprintRetro(
 ): Promise<ActionResult<string>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = await getSprintProjectId(sprintId);
   if (!projectId) return { success: false, error: "Sprint not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   if (!isAIEnabled()) {
@@ -264,6 +270,8 @@ export async function searchMyTasks(
 ): Promise<ActionResult<{ tasks: SearchedTask[]; filter: TaskFilter }>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const trimmed = query.trim();
   if (trimmed.length < 2) {

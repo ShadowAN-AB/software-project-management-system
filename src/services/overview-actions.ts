@@ -2,13 +2,15 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember } from "@/lib/authorization";
+import { requireProjectMember , resolveDefaultWorkspace} from "@/lib/authorization";
 
 export async function getProjectOverview(projectId: string) {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return null;
 
   const [project, taskStats, sprintStats, recentActivity, memberTasks, overdueCount] =
@@ -87,13 +89,25 @@ export async function getProjectOverview(projectId: string) {
 export async function getTeamWorkload() {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  let projectScope: { projectId: { in: string[] } } | Record<string, never>;
-  if (session.user.role === "ADMIN") {
-    projectScope = {};
+  // Always scope to the current workspace. Admin sees all workspace projects;
+  // non-admin sees only projects they explicitly belong to (still workspace-scoped).
+  const workspaceProjects = await prisma.project.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    select: { id: true },
+  });
+  const workspaceProjectIds = workspaceProjects.map((p) => p.id);
+  let projectScope: { projectId: { in: string[] } };
+  if (ctx.role === "ADMIN") {
+    projectScope = { projectId: { in: workspaceProjectIds } };
   } else {
     const userProjects = await prisma.projectMember.findMany({
-      where: { userId: session.user.id },
+      where: {
+        userId: session.user.id,
+        projectId: { in: workspaceProjectIds },
+      },
       select: { projectId: true },
     });
     projectScope = { projectId: { in: userProjects.map((p) => p.projectId) } };
@@ -104,10 +118,18 @@ export async function getTeamWorkload() {
 
   const [users, completedThisWeek] = await Promise.all([
     prisma.user.findMany({
-      where: "projectId" in projectScope
-        ? { projectMemberships: { some: projectScope } }
-        : {},
+      where: {
+        workspaceMemberships: { some: { workspaceId: ctx.workspaceId } },
+        ...("projectId" in projectScope
+          ? { projectMemberships: { some: projectScope } }
+          : {}),
+      },
       include: {
+        workspaceMemberships: {
+          where: { workspaceId: ctx.workspaceId },
+          select: { role: true },
+          take: 1,
+        },
         assignedTasks: {
           where: { status: { not: "DONE" }, ...projectScope },
           select: {
@@ -148,7 +170,7 @@ export async function getTeamWorkload() {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
+    role: user.workspaceMemberships[0]?.role ?? "DEVELOPER",
     activeTasks: user.assignedTasks,
     activeTaskCount: user.assignedTasks.length,
     completedThisWeek: completedMap[user.id] ?? 0,

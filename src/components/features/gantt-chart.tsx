@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import {
   addDays,
@@ -52,6 +53,7 @@ export function GanttChart({
   tasks: Task[];
   sprints: Sprint[];
 }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [daysPerCell, setDaysPerCell] = useState(1);
   const [offsetWeeks, setOffsetWeeks] = useState(0);
@@ -212,7 +214,7 @@ export function GanttChart({
                 style={{ backgroundColor: STATUS_COLORS[task.status] ?? "#a1a1aa" }}
               />
               <Link
-                href={`/tasks/${task.id}`}
+                href={`/w/${workspaceSlug}/tasks/${task.id}`}
                 className="text-xs text-zinc-800 dark:text-zinc-200 truncate hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex-1"
               >
                 {task.title}
@@ -454,7 +456,7 @@ export function GanttChart({
                   />
 
                   {/* Bar */}
-                  <Link href={`/tasks/${task.id}`}>
+                  <Link href={`/w/${workspaceSlug}/tasks/${task.id}`}>
                     <rect
                       x={startX}
                       y={barY}

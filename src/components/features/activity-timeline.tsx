@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
@@ -70,6 +71,7 @@ export function ActivityTimeline({
   activities: ActivityItem[];
   projects: { id: string; name: string }[];
 }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const [filterProject, setFilterProject] = useState<string>("all");
 
   const filtered =
@@ -143,7 +145,7 @@ export function ActivityTimeline({
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
                             {a.project && (
                               <Link
-                                href={`/projects/${a.project.id}`}
+                                href={`/w/${workspaceSlug}/projects/${a.project.id}`}
                                 className="hover:text-blue-600 transition-colors font-mono"
                               >
                                 {a.project.key}
@@ -153,7 +155,7 @@ export function ActivityTimeline({
                               <>
                                 <span>&middot;</span>
                                 <Link
-                                  href={`/tasks/${a.task.id}`}
+                                  href={`/w/${workspaceSlug}/tasks/${a.task.id}`}
                                   className="hover:text-blue-600 transition-colors truncate max-w-[200px]"
                                 >
                                   {a.task.title}

@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId, getSprintProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { sprintSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -14,8 +14,10 @@ import type { SSEFrame } from "@/lib/sse-events";
 export async function getSprintsByProject(projectId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.sprint.findMany({
@@ -31,11 +33,13 @@ export async function getSprintsByProject(projectId: string) {
 export async function getSprint(id: string) {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
   const projectId = await getSprintProjectId(id);
   if (!projectId) return null;
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return null;
 
   return prisma.sprint.findUnique({
@@ -56,7 +60,9 @@ export async function createSprint(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can create sprints" };
   }
 
@@ -91,17 +97,19 @@ export async function createSprint(
     },
   });
 
-  revalidatePath(`/projects/${parsed.data.projectId}`);
-  redirect(`/sprints/${sprint.id}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${parsed.data.projectId}`);
+  redirect(`/w/${ctx.workspaceSlug}/sprints/${sprint.id}`);
 }
 
 export async function updateSprintStatus(sprintId: string, status: SprintStatus) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const sprintProjectId = await getSprintProjectId(sprintId);
   if (!sprintProjectId) return { success: false, error: "Sprint not found" };
-  const isMember = await requireProjectMember(sprintProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(sprintProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const sprint = await prisma.sprint.update({
@@ -127,18 +135,20 @@ export async function updateSprintStatus(sprintId: string, status: SprintStatus)
     } as SSEFrame
   );
 
-  revalidatePath(`/sprints/${sprintId}`);
-  revalidatePath(`/projects/${sprint.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/sprints/${sprintId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${sprint.projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function assignTaskToSprint(taskId: string, sprintId: string | null) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const taskProjectId = await getTaskProjectId(taskId);
   if (!taskProjectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(taskProjectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const task = await prisma.task.update({
@@ -146,7 +156,7 @@ export async function assignTaskToSprint(taskId: string, sprintId: string | null
     data: { sprintId },
   });
 
-  revalidatePath(`/projects/${task.projectId}`);
-  if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
+  if (sprintId) revalidatePath(`/w/${ctx.workspaceSlug}/sprints/${sprintId}`);
   return { success: true, data: undefined };
 }

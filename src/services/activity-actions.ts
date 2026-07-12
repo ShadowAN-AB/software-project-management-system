@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 
 export async function getActivityFeed(options?: {
   projectId?: string;
@@ -10,16 +11,22 @@ export async function getActivityFeed(options?: {
 }) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = ctx.role === "ADMIN";
   const userId = session.user.id;
   const limit = options?.limit ?? 30;
   const offset = options?.offset ?? 0;
 
+  const workspaceScope = isAdmin
+    ? { workspaceId: ctx.workspaceId }
+    : { workspaceId: ctx.workspaceId, members: { some: { userId } } };
+
   return prisma.activityLog.findMany({
     where: {
       ...(options?.projectId ? { projectId: options.projectId } : {}),
-      ...(isAdmin ? {} : { project: { members: { some: { userId } } } }),
+      project: workspaceScope,
     },
     include: {
       user: { select: { id: true, name: true } },

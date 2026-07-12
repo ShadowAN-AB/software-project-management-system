@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -174,11 +175,12 @@ export function MyTasksView({
 }
 
 function TaskList({ tasks }: { tasks: Task[] }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   return (
     <ul className="divide-y divide-gray-100 dark:divide-zinc-700">
       {tasks.map((task) => (
         <li key={task.id} className="px-6 py-3 hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-          <Link href={`/tasks/${task.id}`}>
+          <Link href={`/w/${workspaceSlug}/tasks/${task.id}`}>
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{task.title}</p>

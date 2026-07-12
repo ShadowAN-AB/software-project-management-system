@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabase, ATTACHMENTS_BUCKET } from "@/lib/supabase";
-import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 
@@ -15,10 +15,12 @@ export async function uploadAttachment(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   const file = formData.get("file") as File;
@@ -54,8 +56,8 @@ export async function uploadAttachment(
   });
 
   const task = await prisma.task.findUnique({ where: { id: taskId } });
-  revalidatePath(`/tasks/${taskId}`);
-  if (task) revalidatePath(`/projects/${task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
+  if (task) revalidatePath(`/w/${ctx.workspaceSlug}/projects/${task.projectId}`);
 
   return { success: true, data: undefined };
 }
@@ -63,6 +65,8 @@ export async function uploadAttachment(
 export async function deleteAttachment(attachmentId: string): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const attachment = await prisma.attachment.findUnique({
     where: { id: attachmentId },
@@ -71,19 +75,19 @@ export async function deleteAttachment(attachmentId: string): Promise<ActionResu
 
   if (!attachment) return { success: false, error: "Attachment not found" };
 
-  const isMember = await requireProjectMember(attachment.task.projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(attachment.task.projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
   const canDelete =
     attachment.uploadedBy === session.user.id ||
-    ["ADMIN", "PROJECT_MANAGER"].includes(session.user.role);
+    ["ADMIN", "PROJECT_MANAGER"].includes(ctx.role);
 
   if (!canDelete) return { success: false, error: "Permission denied" };
 
   await supabase.storage.from(ATTACHMENTS_BUCKET).remove([attachment.storagePath]);
   await prisma.attachment.delete({ where: { id: attachmentId } });
 
-  revalidatePath(`/tasks/${attachment.taskId}`);
-  revalidatePath(`/projects/${attachment.task.projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${attachment.taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${attachment.task.projectId}`);
 
   return { success: true, data: undefined };
 }
@@ -91,11 +95,13 @@ export async function deleteAttachment(attachmentId: string): Promise<ActionResu
 export async function getAttachments(taskId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.attachment.findMany({

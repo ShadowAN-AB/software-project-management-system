@@ -2,17 +2,19 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId, getSprintProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 
 export async function getTimeEntries(taskId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.timeEntry.findMany({
@@ -30,10 +32,12 @@ export async function logTime(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (minutes <= 0 || minutes > 1440) {
@@ -62,35 +66,39 @@ export async function logTime(
     },
   });
 
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true };
 }
 
 export async function deleteTimeEntry(entryId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const entry = await prisma.timeEntry.findUnique({ where: { id: entryId } });
   if (!entry) return { success: false, error: "Entry not found" };
 
   // Only the person who logged it or admins can delete
-  if (entry.userId !== session.user.id && session.user.role !== "ADMIN") {
+  if (entry.userId !== session.user.id && ctx.role !== "ADMIN") {
     return { success: false, error: "Cannot delete others' time entries" };
   }
 
   await prisma.timeEntry.delete({ where: { id: entryId } });
-  revalidatePath(`/tasks/${entry.taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${entry.taskId}`);
   return { success: true };
 }
 
 export async function getSprintTimeEntries(sprintId: string) {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const sprintProjectId = await getSprintProjectId(sprintId);
   if (!sprintProjectId) return [];
 
-  const isMember = await requireProjectMember(sprintProjectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(sprintProjectId, session.user.id, ctx);
   if (!isMember) return [];
 
   const sprint = await prisma.sprint.findUnique({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
+import { useParams } from "next/navigation";
 import { createProject, createProjectFromTemplate } from "@/services/project-actions";
 import { PROJECT_TEMPLATES } from "@/lib/project-templates";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function NewProjectPage() {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [blankState, blankAction, blankPending] = useActionState<ActionResult | null, FormData>(
     createProject,
@@ -36,7 +38,7 @@ export default function NewProjectPage() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <Link
-          href="/projects"
+          href={`/w/${workspaceSlug}/projects`}
           className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -217,7 +219,7 @@ export default function NewProjectPage() {
             )}
 
             <div className="flex justify-end gap-3 pt-4">
-              <Link href="/projects">
+              <Link href={`/w/${workspaceSlug}/projects`}>
                 <Button type="button" variant="secondary">
                   Cancel
                 </Button>

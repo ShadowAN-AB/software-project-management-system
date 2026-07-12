@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { supabase, ATTACHMENTS_BUCKET } from "@/lib/supabase";
-import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId, resolveDefaultWorkspace } from "@/lib/authorization";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -11,6 +11,10 @@ export async function GET(
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -25,7 +29,7 @@ export async function GET(
 
   const projectId = await getTaskProjectId(attachment.taskId);
   if (!projectId) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { data, error } = await supabase.storage

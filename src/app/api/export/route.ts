@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember } from "@/lib/authorization";
+import { requireProjectMember, resolveDefaultWorkspace } from "@/lib/authorization";
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 
@@ -86,6 +86,10 @@ export async function GET(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) {
+    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
@@ -113,7 +117,7 @@ export async function GET(request: Request) {
   const isMember = await requireProjectMember(
     resolvedProjectId!,
     session.user.id,
-    session.user.role
+    ctx
   );
   if (!isMember) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

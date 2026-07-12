@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { addDependency, removeDependency } from "@/services/dependency-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export function TaskDependencies({
   blocks: Dependency[];
   projectTasks: ProjectTask[];
 }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const [isPending, startTransition] = useTransition();
   const [showAdd, setShowAdd] = useState<"blockedBy" | "blocks" | null>(null);
   const [search, setSearch] = useState("");
@@ -107,7 +109,7 @@ export function TaskDependencies({
               <div key={dep.id} className="flex items-center justify-between group bg-zinc-50 dark:bg-zinc-800 rounded-lg px-3 py-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Link
-                    href={`/tasks/${dep.blockerTask!.id}`}
+                    href={`/w/${workspaceSlug}/tasks/${dep.blockerTask!.id}`}
                     className="text-sm text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 truncate"
                   >
                     {dep.blockerTask!.title}
@@ -148,7 +150,7 @@ export function TaskDependencies({
               <div key={dep.id} className="flex items-center justify-between group bg-zinc-50 dark:bg-zinc-800 rounded-lg px-3 py-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Link
-                    href={`/tasks/${dep.blockedTask!.id}`}
+                    href={`/w/${workspaceSlug}/tasks/${dep.blockedTask!.id}`}
                     className="text-sm text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 truncate"
                   >
                     {dep.blockedTask!.title}

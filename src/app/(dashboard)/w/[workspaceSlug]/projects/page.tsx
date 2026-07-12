@@ -1,15 +1,20 @@
 import { getProjects } from "@/services/project-actions";
 import { auth } from "@/lib/auth";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { FolderKanban, Plus, Users, ListTodo } from "lucide-react";
 import Link from "next/link";
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
   const [session, projects] = await Promise.all([auth(), getProjects()]);
-  const canCreate = ["ADMIN", "PROJECT_MANAGER"].includes(
-    session?.user?.role ?? ""
-  );
+  const ctx = session?.user ? await resolveDefaultWorkspace(session.user.id) : null;
+  const canCreate = ["ADMIN", "PROJECT_MANAGER"].includes(ctx?.role ?? "");
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -24,7 +29,7 @@ export default async function ProjectsPage() {
         </div>
         {canCreate && (
           <Link
-            href="/projects/new"
+            href={`/w/${workspaceSlug}/projects/new`}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 shadow-sm transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
@@ -45,7 +50,7 @@ export default async function ProjectsPage() {
             </p>
             {canCreate && (
               <Link
-                href="/projects/new"
+                href={`/w/${workspaceSlug}/projects/new`}
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-zinc-900 rounded-lg hover:bg-zinc-800 transition-all active:scale-[0.98]"
               >
                 <Plus className="h-4 w-4" />
@@ -57,7 +62,7 @@ export default async function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
+            <Link key={project.id} href={`/w/${workspaceSlug}/projects/${project.id}`}>
               <Card hoverable className="cursor-pointer h-full">
                 <CardContent>
                   <div className="flex items-start justify-between mb-3">

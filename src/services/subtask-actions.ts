@@ -1,18 +1,20 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireProjectMember, getTaskProjectId } from "@/lib/authorization";
+import { requireAuth, requireProjectMember, getTaskProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 
 export async function getSubtasks(taskId: string) {
   const session = await requireAuth();
   if (!session) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   return prisma.subtask.findMany({
@@ -27,11 +29,13 @@ export async function createSubtask(
 ): Promise<ActionResult<{ id: string }>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Not authenticated" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "Not authenticated" };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   const trimmed = title.trim();
@@ -50,7 +54,7 @@ export async function createSubtask(
     },
   });
 
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: { id: subtask.id } };
 }
 
@@ -59,6 +63,8 @@ export async function toggleSubtask(
 ): Promise<ActionResult<{ completed: boolean }>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Not authenticated" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "Not authenticated" };
 
   const subtask = await prisma.subtask.findUnique({
     where: { id: subtaskId },
@@ -69,7 +75,7 @@ export async function toggleSubtask(
   const projectId = await getTaskProjectId(subtask.taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   const updated = await prisma.subtask.update({
@@ -77,7 +83,7 @@ export async function toggleSubtask(
     data: { completed: !subtask.completed },
   });
 
-  revalidatePath(`/tasks/${subtask.taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${subtask.taskId}`);
   return { success: true, data: { completed: updated.completed } };
 }
 
@@ -86,6 +92,8 @@ export async function deleteSubtask(
 ): Promise<ActionResult<null>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Not authenticated" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "Not authenticated" };
 
   const subtask = await prisma.subtask.findUnique({
     where: { id: subtaskId },
@@ -96,12 +104,12 @@ export async function deleteSubtask(
   const projectId = await getTaskProjectId(subtask.taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   await prisma.subtask.delete({ where: { id: subtaskId } });
 
-  revalidatePath(`/tasks/${subtask.taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${subtask.taskId}`);
   return { success: true, data: null };
 }
 
@@ -111,6 +119,8 @@ export async function updateSubtaskTitle(
 ): Promise<ActionResult<null>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Not authenticated" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "Not authenticated" };
 
   const subtask = await prisma.subtask.findUnique({
     where: { id: subtaskId },
@@ -121,7 +131,7 @@ export async function updateSubtaskTitle(
   const projectId = await getTaskProjectId(subtask.taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   const trimmed = title.trim();
@@ -132,7 +142,7 @@ export async function updateSubtaskTitle(
     data: { title: trimmed },
   });
 
-  revalidatePath(`/tasks/${subtask.taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${subtask.taskId}`);
   return { success: true, data: null };
 }
 
@@ -142,11 +152,13 @@ export async function reorderSubtasks(
 ): Promise<ActionResult<null>> {
   const session = await requireAuth();
   if (!session) return { success: false, error: "Not authenticated" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "Not authenticated" };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { success: false, error: "Task not found" };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a project member" };
 
   await prisma.$transaction(
@@ -155,6 +167,6 @@ export async function reorderSubtasks(
     )
   );
 
-  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${taskId}`);
   return { success: true, data: null };
 }

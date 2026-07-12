@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import type { Role } from "@prisma/client";
 
 declare module "next-auth" {
   interface Session {
@@ -6,7 +6,6 @@ declare module "next-auth" {
       id: string;
       email: string;
       name: string;
-      role: Role;
       image?: string | null;
     };
   }
@@ -15,18 +14,23 @@ declare module "next-auth" {
     id: string;
     email: string;
     name: string;
-    role: Role;
   }
 }
 
-// NextAuth v5 uses @auth/core
 declare module "@auth/core/jwt" {
   interface JWT {
     id: string;
-    role: Role;
   }
 }
 
 export type ActionResult<T = void> =
   | { success: true; data: T }
   | { success: false; error: string };
+
+// Per-request workspace context resolved from the URL slug in the workspace layout
+// and passed to server actions. See src/lib/authorization.ts#requireWorkspaceMember.
+export type WorkspaceContext = {
+  workspaceId: string;
+  workspaceSlug: string;
+  role: Role;
+};

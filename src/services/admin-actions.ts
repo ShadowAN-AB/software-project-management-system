@@ -1,117 +1,112 @@
 "use server";
 
-import { auth, invalidateRoleCache } from "@/lib/auth";
+import type { Session } from "next-auth";
+import { auth, invalidateWorkspaceRoleCache, invalidateAllWorkspaceRolesForUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/types";
+import type { ActionResult, WorkspaceContext } from "@/types";
 
-async function requireAdmin() {
+async function requireAdmin(): Promise<{ session: Session; ctx: WorkspaceContext }> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Admin access required");
-  }
-  return session;
+  if (!session?.user) throw new Error("Admin access required");
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx || ctx.role !== "ADMIN") throw new Error("Admin access required");
+  return { session, ctx };
 }
 
 export async function getAdminStats() {
-  await requireAdmin();
+  const { ctx } = await requireAdmin();
 
-  const [userCount, projectCount, taskCount, recentUsers] = await Promise.all([
-    prisma.user.count(),
-    prisma.project.count(),
-    prisma.task.count(),
-    prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
+  const [memberCount, projectCount, taskCount, recentMembers, roleGroups] = await Promise.all([
+    prisma.workspaceMember.count({ where: { workspaceId: ctx.workspaceId } }),
+    prisma.project.count({ where: { workspaceId: ctx.workspaceId } }),
+    prisma.task.count({ where: { project: { workspaceId: ctx.workspaceId } } }),
+    prisma.workspaceMember.findMany({
+      where: { workspaceId: ctx.workspaceId },
+      orderBy: { joinedAt: "desc" },
       take: 5,
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: {
+        role: true,
+        joinedAt: true,
+        user: { select: { id: true, name: true, email: true } },
+      },
+    }),
+    prisma.workspaceMember.groupBy({
+      by: ["role"],
+      where: { workspaceId: ctx.workspaceId },
+      _count: true,
     }),
   ]);
 
-  const roleDistribution = await prisma.user.groupBy({
-    by: ["role"],
-    _count: true,
-  });
-
   return {
-    userCount,
+    userCount: memberCount,
     projectCount,
     taskCount,
-    recentUsers,
-    roleDistribution: Object.fromEntries(
-      roleDistribution.map((r) => [r.role, r._count])
-    ),
+    recentUsers: recentMembers.map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      role: m.role,
+      createdAt: m.joinedAt,
+    })),
+    roleDistribution: Object.fromEntries(roleGroups.map((r) => [r.role, r._count])),
   };
 }
 
 export async function getAdminUsers() {
-  await requireAdmin();
+  const { ctx } = await requireAdmin();
 
-  return prisma.user.findMany({
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    orderBy: { joinedAt: "desc" },
     include: {
-      _count: {
-        select: {
-          assignedTasks: true,
-          createdTasks: true,
-          projectMemberships: true,
+      user: {
+        include: {
+          _count: {
+            select: {
+              assignedTasks: true,
+              createdTasks: true,
+              projectMemberships: true,
+            },
+          },
         },
       },
     },
-    orderBy: { createdAt: "desc" },
   });
+
+  return members.map((m) => ({
+    ...m.user,
+    role: m.role,
+  }));
 }
 
 export async function updateUserRole(
   userId: string,
   role: "ADMIN" | "PROJECT_MANAGER" | "DEVELOPER" | "TESTER"
 ): Promise<ActionResult> {
-  const session = await requireAdmin();
+  const { session, ctx } = await requireAdmin();
 
   if (userId === session.user.id) {
     return { success: false, error: "Cannot change your own role" };
   }
 
-  await prisma.user.update({
-    where: { id: userId },
+  await prisma.workspaceMember.update({
+    where: { workspaceId_userId: { workspaceId: ctx.workspaceId, userId } },
     data: { role },
   });
-  invalidateRoleCache(userId);
+  invalidateWorkspaceRoleCache(userId, ctx.workspaceId);
 
-  revalidatePath("/admin");
-  return { success: true, data: undefined };
-}
-
-export async function bootstrapAdmin(): Promise<ActionResult> {
-  const session = await auth();
-  if (!session?.user) return { success: false, error: "Not authenticated" };
-
-  // Atomic check-and-promote: only succeeds when zero admins exist
-  const result = await prisma.$transaction(async (tx) => {
-    const adminCount = await tx.user.count({ where: { role: "ADMIN" } });
-    if (adminCount > 0) return false;
-
-    await tx.user.update({
-      where: { id: session.user.id },
-      data: { role: "ADMIN" },
-    });
-    return true;
-  });
-  if (result) invalidateRoleCache(session.user.id);
-
-  if (!result) {
-    return { success: false, error: "An admin already exists. Contact them for role changes." };
-  }
-
-  revalidatePath("/admin");
-  revalidatePath("/dashboard");
+  revalidatePath(`/w/${ctx.workspaceSlug}/admin`);
   return { success: true, data: undefined };
 }
 
 export async function getAdminCount() {
-  return prisma.user.count({ where: { role: "ADMIN" } });
+  return prisma.workspaceMember.count({ where: { role: "ADMIN" } });
 }
 
 export async function deleteUser(userId: string): Promise<ActionResult> {
-  const session = await requireAdmin();
+  const { session, ctx } = await requireAdmin();
 
   if (userId === session.user.id) {
     return { success: false, error: "Cannot delete your own account" };
@@ -121,11 +116,13 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     prisma.task.updateMany({ where: { assigneeId: userId }, data: { assigneeId: null } }),
     prisma.task.updateMany({ where: { creatorId: userId }, data: { creatorId: null } }),
     prisma.projectMember.deleteMany({ where: { userId } }),
+    prisma.workspaceMember.deleteMany({ where: { userId } }),
     prisma.comment.deleteMany({ where: { userId } }),
     prisma.activityLog.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
+  invalidateAllWorkspaceRolesForUser(userId);
 
-  revalidatePath("/admin");
+  revalidatePath(`/w/${ctx.workspaceSlug}/admin`);
   return { success: true, data: undefined };
 }

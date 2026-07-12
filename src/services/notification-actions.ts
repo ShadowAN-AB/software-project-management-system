@@ -54,19 +54,21 @@ export async function markAllAsRead() {
 // Helper to create notifications — called from other server actions
 export async function createNotification({
   userId,
+  workspaceId,
   type,
   title,
   message,
   link,
 }: {
   userId: string;
+  workspaceId: string;
   type: NotificationType;
   title: string;
   message: string;
   link?: string;
 }) {
   const notification = await prisma.notification.create({
-    data: { userId, type, title, message, link },
+    data: { userId, workspaceId, type, title, message, link },
   });
 
   eventBus.emit(`user:${userId}`, {
@@ -87,6 +89,7 @@ export async function createNotification({
 // Notify multiple users
 export async function notifyUsers({
   userIds,
+  workspaceId,
   type,
   title,
   message,
@@ -94,6 +97,7 @@ export async function notifyUsers({
   excludeUserId,
 }: {
   userIds: string[];
+  workspaceId: string;
   type: NotificationType;
   title: string;
   message: string;
@@ -107,6 +111,6 @@ export async function notifyUsers({
   if (targets.length === 0) return;
 
   for (const targetId of targets) {
-    await createNotification({ userId: targetId, type, title, message, link });
+    await createNotification({ userId: targetId, workspaceId, type, title, message, link });
   }
 }

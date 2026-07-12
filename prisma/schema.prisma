@@ -56,27 +56,61 @@ model User {
   email         String    @unique
   name          String
   passwordHash  String
-  role          Role      @default(DEVELOPER)
   avatarUrl     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  projectMemberships ProjectMember[]
-  assignedTasks      Task[]          @relation("AssignedTasks")
-  createdTasks       Task[]          @relation("CreatedTasks")
-  comments           Comment[]
-  activityLogs       ActivityLog[]
-  notifications      Notification[]
-  invitations        Invitation[]
-  timeEntries        TimeEntry[]
+  workspaceMemberships WorkspaceMember[]
+  createdWorkspaces    Workspace[]     @relation("WorkspaceCreator")
+  projectMemberships   ProjectMember[]
+  assignedTasks        Task[]          @relation("AssignedTasks")
+  createdTasks         Task[]          @relation("CreatedTasks")
+  comments             Comment[]
+  activityLogs         ActivityLog[]
+  notifications        Notification[]
+  invitations          Invitation[]
+  timeEntries          TimeEntry[]
 
   @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById String
+  createdBy   User     @relation("WorkspaceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  members     WorkspaceMember[]
+  projects    Project[]
+  invitations Invitation[]
+  notifications Notification[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(DEVELOPER)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
 }
 
 model Project {
   id          String        @id @default(cuid())
   name        String
-  key         String        @unique
+  key         String
   description String?
   status      ProjectStatus @default(PLANNING)
   startDate   DateTime?
@@ -84,12 +118,17 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
   members     ProjectMember[]
   tasks       Task[]
   sprints     Sprint[]
   activityLogs ActivityLog[]
   labels       Label[]
 
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
   @@map("projects")
 }
 
@@ -217,11 +256,14 @@ model Notification {
   link      String?
   createdAt DateTime         @default(now())
 
-  userId    String
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  workspaceId String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([userId, createdAt])
+  @@index([userId, workspaceId, read])
   @@map("notifications")
 }
 
@@ -280,10 +322,13 @@ model Invitation {
   createdAt DateTime @default(now())
 
   invitedById String
-  invitedBy   User @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+  workspaceId String
+  invitedBy   User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([email])
+  @@index([workspaceId])
   @@map("invitations")
 }
 

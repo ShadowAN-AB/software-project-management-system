@@ -1,6 +1,7 @@
 import { getProject, getAllUsers } from "@/services/project-actions";
 import { getProjectOverview } from "@/services/overview-actions";
 import { auth } from "@/lib/auth";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { notFound } from "next/navigation";
 import { Timer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -15,9 +16,9 @@ import { ProjectStatusControl } from "@/components/features/project-status-contr
 export default async function ProjectDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; workspaceSlug: string }>;
 }) {
-  const { id } = await params;
+  const { id, workspaceSlug } = await params;
   const [session, project, overview, allUsers, aiEnabled] = await Promise.all([
     auth(),
     getProject(id),
@@ -28,12 +29,13 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const canManage = ["ADMIN", "PROJECT_MANAGER"].includes(session?.user?.role ?? "");
+  const ctx = session?.user ? await resolveDefaultWorkspace(session.user.id) : null;
+  const canManage = ["ADMIN", "PROJECT_MANAGER"].includes(ctx?.role ?? "");
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <Link
-        href="/projects"
+        href={`/w/${workspaceSlug}/projects`}
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -61,7 +63,7 @@ export default async function ProjectDetailPage({
           <ExportCsvButton projectId={project.id} label="Export Tasks" />
           {canManage && (
             <Link
-              href={`/sprints/new?projectId=${project.id}`}
+              href={`/w/${workspaceSlug}/sprints/new?projectId=${project.id}`}
               className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 bg-zinc-900 dark:bg-zinc-100 rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
             >
               <Timer className="h-4 w-4" />

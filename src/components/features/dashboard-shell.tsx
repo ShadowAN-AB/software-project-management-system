@@ -22,6 +22,8 @@ export function DashboardShell({
   userName,
   userRole,
   userId,
+  workspaceSlug,
+  workspaces,
   notifications,
   unreadCount,
 }: {
@@ -29,6 +31,8 @@ export function DashboardShell({
   userName: string;
   userRole: string;
   userId: string;
+  workspaceSlug: string;
+  workspaces: { id: string; slug: string; name: string; role: string }[];
   notifications: Notification[];
   unreadCount: number;
 }) {
@@ -44,7 +48,7 @@ export function DashboardShell({
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar userName={userName} userRole={userRole} />
+        <Sidebar userName={userName} userRole={userRole} workspaceSlug={workspaceSlug} workspaces={workspaces} />
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -58,6 +62,8 @@ export function DashboardShell({
             <Sidebar
               userName={userName}
               userRole={userRole}
+              workspaceSlug={workspaceSlug}
+              workspaces={workspaces}
               onNavigate={() => setMobileOpen(false)}
             />
             <button

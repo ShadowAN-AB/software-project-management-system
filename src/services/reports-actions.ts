@@ -2,15 +2,23 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 
 export async function getReportsData() {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = ctx.role === "ADMIN";
   const userId = session.user.id;
-  const projectWhere = isAdmin ? {} : { members: { some: { userId } } };
-  const taskWhere = isAdmin ? {} : { project: { members: { some: { userId } } } };
+  const workspaceId = ctx.workspaceId;
+  const projectWhere = isAdmin
+    ? { workspaceId }
+    : { workspaceId, members: { some: { userId } } };
+  const taskWhere = {
+    project: projectWhere,
+  };
 
   const [
     tasksByStatus,
@@ -73,7 +81,7 @@ export async function getReportsData() {
     prisma.sprint.findMany({
       where: {
         status: { in: ["ACTIVE", "COMPLETED"] },
-        project: isAdmin ? {} : { members: { some: { userId } } },
+        project: projectWhere,
       },
       include: {
         project: { select: { name: true } },

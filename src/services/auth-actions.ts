@@ -32,9 +32,34 @@ export async function login(
     return { success: false, error: "Invalid email or password" };
   }
   if (success) {
-    redirect("/dashboard");
+    // Root page redirects to the user's workspace after login.
+    redirect("/");
   }
   return { success: false, error: "Something went wrong" };
+}
+
+/**
+ * Kebab-case slug from a display name. Falls back to "workspace".
+ */
+function sanitizeSlug(base: string): string {
+  const slug = base
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return slug || "workspace";
+}
+
+async function pickUniqueSlug(base: string): Promise<string> {
+  let candidate = base;
+  let suffix = 2;
+  // Retry with -2, -3, ... on unique conflict.
+  while (await prisma.workspace.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+    if (suffix > 999) throw new Error("Could not find a unique workspace slug");
+  }
+  return candidate;
 }
 
 export async function register(
@@ -59,57 +84,36 @@ export async function register(
     return { success: false, error: "Email already registered" };
   }
 
-  const userCount = await prisma.user.count();
-  const isFirstUser = userCount === 0;
-
-  // After the first user, registration requires a valid invite token
-  const token = formData.get("token") as string | null;
-  let inviteRole: string | null = null;
-
-  if (!isFirstUser) {
-    if (!token) {
-      return { success: false, error: "Registration requires an invitation. Contact your admin." };
-    }
-
-    const invitation = await prisma.invitation.findUnique({
-      where: { token },
-    });
-
-    if (!invitation || invitation.usedAt || invitation.expiresAt < new Date()) {
-      return { success: false, error: "Invalid or expired invitation link" };
-    }
-
-    if (invitation.email !== parsed.data.email) {
-      return { success: false, error: "This invitation was sent to a different email address" };
-    }
-
-    inviteRole = invitation.role;
-  }
-
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  const role = isFirstUser ? "ADMIN" : (inviteRole ?? "DEVELOPER");
+  const firstName = parsed.data.name.split(/\s+/)[0] ?? parsed.data.name;
+  const workspaceName = `${firstName}'s Workspace`;
+  const slugBase = sanitizeSlug(`${firstName}s-workspace`);
+  const slug = await pickUniqueSlug(slugBase);
 
-  await prisma.user.create({
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      passwordHash,
-      role: role as "ADMIN" | "PROJECT_MANAGER" | "DEVELOPER" | "TESTER",
-    },
+  // Atomic: user + workspace + ADMIN membership either all persist or none.
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash,
+      },
+    });
+    const workspace = await tx.workspace.create({
+      data: {
+        name: workspaceName,
+        slug,
+        createdById: user.id,
+      },
+    });
+    await tx.workspaceMember.create({
+      data: {
+        userId: user.id,
+        workspaceId: workspace.id,
+        role: "ADMIN",
+      },
+    });
   });
 
-  // Mark invitation as used
-  if (token) {
-    await prisma.invitation.update({
-      where: { token },
-      data: { usedAt: new Date() },
-    });
-  }
-
   redirect("/login?registered=true");
-}
-
-export async function getSystemHasUsers() {
-  const count = await prisma.user.count();
-  return count > 0;
 }

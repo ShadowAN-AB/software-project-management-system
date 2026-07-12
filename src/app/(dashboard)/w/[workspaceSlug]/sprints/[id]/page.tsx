@@ -2,6 +2,7 @@ import { getSprint } from "@/services/sprint-actions";
 import { getBurndownData } from "@/services/burndown-actions";
 import { getSprintTimeEntries } from "@/services/time-tracking-actions";
 import { auth } from "@/lib/auth";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
@@ -17,9 +18,9 @@ import { isAIAvailable } from "@/services/ai-actions";
 export default async function SprintDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; workspaceSlug: string }>;
 }) {
-  const { id } = await params;
+  const { id, workspaceSlug } = await params;
   const [session, sprint, burndownData, sprintTimeEntries, aiEnabled] = await Promise.all([
     auth(),
     getSprint(id),
@@ -36,12 +37,13 @@ export default async function SprintDetailPage({
       ? Math.round((doneTasks / sprint.tasks.length) * 100)
       : 0;
 
-  const canManage = ["ADMIN", "PROJECT_MANAGER"].includes(session?.user?.role ?? "");
+  const ctx = session?.user ? await resolveDefaultWorkspace(session.user.id) : null;
+  const canManage = ["ADMIN", "PROJECT_MANAGER"].includes(ctx?.role ?? "");
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <Link
-        href={`/projects/${sprint.project.id}`}
+        href={`/w/${workspaceSlug}/projects/${sprint.project.id}`}
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
       >
         <ArrowLeft className="h-4 w-4" />

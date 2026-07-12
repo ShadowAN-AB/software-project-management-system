@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { useState, useTransition, useRef, useMemo } from "react";
 import { bulkUpdateTasks, bulkDeleteTasks, reorderTasks } from "@/services/task-actions";
 import { PriorityBadge, DueDateBadge } from "@/components/ui/badge";
@@ -93,6 +94,7 @@ export function KanbanBoard({
   currentUserId: string;
   members?: { id: string; name: string }[];
 }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const [tasks, setTasks] = useState(initialTasks);
   const [lastInitial, setLastInitial] = useState(initialTasks);
   if (lastInitial !== initialTasks) {
@@ -797,7 +799,7 @@ export function KanbanBoard({
                           strokeWidth={1.75}
                         />
                         <Link
-                          href={`/tasks/${task.id}`}
+                          href={`/w/${workspaceSlug}/tasks/${task.id}`}
                           className="text-sm font-medium text-zinc-900 dark:text-zinc-100 leading-snug hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                           onClick={(e) => { e.stopPropagation(); }}
                         >

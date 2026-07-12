@@ -1,24 +1,26 @@
 "use server";
 
+import type { Session } from "next-auth";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
-import type { ActionResult } from "@/types";
+import type { ActionResult, WorkspaceContext } from "@/types";
 
-async function requireAdmin() {
+async function requireAdmin(): Promise<{ session: Session; ctx: WorkspaceContext }> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    throw new Error("Admin access required");
-  }
-  return session;
+  if (!session?.user) throw new Error("Admin access required");
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx || ctx.role !== "ADMIN") throw new Error("Admin access required");
+  return { session, ctx };
 }
 
 export async function createInvitation(
   email: string,
   role: "ADMIN" | "PROJECT_MANAGER" | "DEVELOPER" | "TESTER"
 ): Promise<ActionResult<{ token: string }>> {
-  const session = await requireAdmin();
+  const { session, ctx } = await requireAdmin();
 
   if (!email || !email.includes("@")) {
     return { success: false, error: "Valid email is required" };
@@ -49,10 +51,11 @@ export async function createInvitation(
         token,
         expiresAt,
         invitedById: session.user.id,
+        workspaceId: ctx.workspaceId,
       },
     });
 
-    revalidatePath("/admin");
+    revalidatePath(`/w/${ctx.workspaceSlug}/admin`);
     return { success: true, data: { token } };
   } catch {
     return { success: false, error: "Invite system not ready. Run: npx prisma db push" };
@@ -74,11 +77,11 @@ export async function getInvitations() {
 }
 
 export async function revokeInvitation(id: string): Promise<ActionResult> {
-  await requireAdmin();
+  const { ctx } = await requireAdmin();
 
   await prisma.invitation.delete({ where: { id } });
 
-  revalidatePath("/admin");
+  revalidatePath(`/w/${ctx.workspaceSlug}/admin`);
   return { success: true, data: undefined };
 }
 

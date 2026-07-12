@@ -1,21 +1,31 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Timer } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 
-export default async function SprintsPage() {
+export default async function SprintsPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = ctx.role === "ADMIN";
 
   const sprints = await prisma.sprint.findMany({
-    where: isAdmin
-      ? {}
-      : { project: { members: { some: { userId: session.user.id } } } },
+    where: {
+      project: isAdmin
+        ? { workspaceId: ctx.workspaceId }
+        : { workspaceId: ctx.workspaceId, members: { some: { userId: session.user.id } } },
+    },
     include: {
       project: true,
       _count: { select: { tasks: true } },
@@ -48,7 +58,7 @@ export default async function SprintsPage() {
                 ? Math.round((sprint.tasks.length / sprint._count.tasks) * 100)
                 : 0;
             return (
-              <Link key={sprint.id} href={`/sprints/${sprint.id}`}>
+              <Link key={sprint.id} href={`/w/${workspaceSlug}/sprints/${sprint.id}`}>
                 <Card className="hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-md transition-all cursor-pointer mb-4">
                   <CardContent>
                     <div className="flex items-start justify-between mb-2">

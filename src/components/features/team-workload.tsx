@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import { DueDateBadge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ function getWorkloadLevel(count: number) {
 }
 
 export function TeamWorkload({ members }: { members: TeamMember[] }) {
+  const workspaceSlug = useParams().workspaceSlug as string;
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
 
   const totalActive = members.reduce((a, m) => a + m.activeTaskCount, 0);
@@ -168,7 +170,7 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                       {member.activeTasks.map((task) => (
                         <Link
                           key={task.id}
-                          href={`/tasks/${task.id}`}
+                          href={`/w/${workspaceSlug}/tasks/${task.id}`}
                           className="flex items-center justify-between px-3 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
                         >
                           <div className="flex items-center gap-2 min-w-0">

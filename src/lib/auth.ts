@@ -4,31 +4,49 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 
+// Per-(user, workspace) role cache with 30s TTL. Same globalThis pattern as prisma.ts.
+// Any code path that mutates WorkspaceMember.role or deletes a membership MUST call
+// invalidateWorkspaceRoleCache(userId, workspaceId) so the change is visible immediately.
 const ROLE_TTL_MS = 30_000;
 const globalForRoleCache = globalThis as unknown as {
-  __pmsRoleCache?: Map<string, { role: Role; expires: number }>;
+  __pmsWorkspaceRoleCache?: Map<string, { role: Role; expires: number }>;
 };
 const roleCache =
-  globalForRoleCache.__pmsRoleCache ??
-  (globalForRoleCache.__pmsRoleCache = new Map());
+  globalForRoleCache.__pmsWorkspaceRoleCache ??
+  (globalForRoleCache.__pmsWorkspaceRoleCache = new Map());
 
-async function getCachedRole(userId: string): Promise<Role | null> {
-  const now = Date.now();
-  const hit = roleCache.get(userId);
-  if (hit && hit.expires > now) return hit.role;
-
-  const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  if (!dbUser) return null;
-
-  roleCache.set(userId, { role: dbUser.role, expires: now + ROLE_TTL_MS });
-  return dbUser.role;
+function cacheKey(userId: string, workspaceId: string) {
+  return `${userId}:${workspaceId}`;
 }
 
-export function invalidateRoleCache(userId: string) {
-  roleCache.delete(userId);
+export async function getCachedWorkspaceRole(
+  userId: string,
+  workspaceId: string
+): Promise<Role | null> {
+  const now = Date.now();
+  const key = cacheKey(userId, workspaceId);
+  const hit = roleCache.get(key);
+  if (hit && hit.expires > now) return hit.role;
+
+  const member = await prisma.workspaceMember.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId } },
+    select: { role: true },
+  });
+  if (!member) return null;
+
+  roleCache.set(key, { role: member.role, expires: now + ROLE_TTL_MS });
+  return member.role;
+}
+
+export function invalidateWorkspaceRoleCache(userId: string, workspaceId: string) {
+  roleCache.delete(cacheKey(userId, workspaceId));
+}
+
+export function invalidateAllWorkspaceRolesForUser(userId: string) {
+  const prefix = `${userId}:`;
+  for (const key of roleCache.keys()) {
+    if (key.startsWith(prefix)) roleCache.delete(key);
+  }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -59,7 +77,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
         };
       },
     }),
@@ -72,21 +89,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id as string;
-        token.role = (user as { role: Role }).role;
-      }
-      if (token.id) {
-        try {
-          const role = await getCachedRole(token.id as string);
-          if (role) token.role = role;
-        } catch {
-          // DB error — keep existing token role
-        }
       }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.id as string;
-      session.user.role = token.role as Role;
       return session;
     },
   },

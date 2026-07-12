@@ -2,17 +2,19 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
+import { requireProjectMember, getTaskProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 
 export async function getTaskDependencies(taskId: string) {
   const session = await auth();
   if (!session?.user) return { blockedBy: [], blocks: [] };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { blockedBy: [], blocks: [] };
 
   const projectId = await getTaskProjectId(taskId);
   if (!projectId) return { blockedBy: [], blocks: [] };
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { blockedBy: [], blocks: [] };
 
   const [blockedBy, blocks] = await Promise.all([
@@ -32,10 +34,12 @@ export async function getTaskDependencies(taskId: string) {
 export async function addDependency(blockedTaskId: string, blockerTaskId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const projectId = await getTaskProjectId(blockedTaskId);
   if (!projectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   if (blockedTaskId === blockerTaskId) {
@@ -65,8 +69,8 @@ export async function addDependency(blockedTaskId: string, blockerTaskId: string
       },
     });
 
-    revalidatePath(`/tasks/${blockedTaskId}`);
-    revalidatePath(`/tasks/${blockerTaskId}`);
+    revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${blockedTaskId}`);
+    revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${blockerTaskId}`);
     return { success: true };
   } catch {
     return { success: false, error: "Dependency already exists" };
@@ -76,19 +80,21 @@ export async function addDependency(blockedTaskId: string, blockerTaskId: string
 export async function removeDependency(dependencyId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
   const dep = await prisma.taskDependency.findUnique({ where: { id: dependencyId } });
   if (!dep) return { success: false, error: "Dependency not found" };
 
   const projectId = await getTaskProjectId(dep.blockedTaskId);
   if (!projectId) return { success: false, error: "Task not found" };
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   await prisma.taskDependency.delete({ where: { id: dependencyId } });
 
-  revalidatePath(`/tasks/${dep.blockedTaskId}`);
-  revalidatePath(`/tasks/${dep.blockerTaskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${dep.blockedTaskId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/tasks/${dep.blockerTaskId}`);
   return { success: true };
 }
 

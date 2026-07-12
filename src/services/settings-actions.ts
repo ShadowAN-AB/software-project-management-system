@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultWorkspace } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 import bcrypt from "bcryptjs";
@@ -9,18 +10,20 @@ import bcrypt from "bcryptjs";
 export async function getProfile() {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       id: true,
       name: true,
       email: true,
-      role: true,
       avatarUrl: true,
       createdAt: true,
     },
   });
+  if (!user) return null;
+  return { ...user, role: ctx?.role ?? "DEVELOPER" };
 }
 
 export async function updateProfile(data: {

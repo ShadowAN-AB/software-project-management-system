@@ -2,13 +2,20 @@ import { auth } from "@/lib/auth";
 import { getTeamWorkload } from "@/services/overview-actions";
 import { TeamWorkload } from "@/components/features/team-workload";
 import { redirect } from "next/navigation";
+import { requireWorkspaceMember } from "@/lib/authorization";
 
-export default async function WorkloadPage() {
+export default async function WorkloadPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await requireWorkspaceMember(workspaceSlug, session.user.id);
 
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
-    redirect("/dashboard");
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
+    redirect(`/w/${workspaceSlug}/dashboard`);
   }
 
   const members = await getTeamWorkload();
@@ -21,7 +28,6 @@ export default async function WorkloadPage() {
           Capacity planning and task distribution across the team
         </p>
       </div>
-
       <TeamWorkload members={members} />
     </div>
   );

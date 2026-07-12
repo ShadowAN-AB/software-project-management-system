@@ -13,7 +13,6 @@ async function main() {
       email: "admin@pms.dev",
       name: "Admin User",
       passwordHash,
-      role: Role.ADMIN,
     },
   });
 
@@ -24,7 +23,6 @@ async function main() {
       email: "pm@pms.dev",
       name: "Sarah Connor",
       passwordHash,
-      role: Role.PROJECT_MANAGER,
     },
   });
 
@@ -35,7 +33,6 @@ async function main() {
       email: "dev@pms.dev",
       name: "John Doe",
       passwordHash,
-      role: Role.DEVELOPER,
     },
   });
 
@@ -46,12 +43,31 @@ async function main() {
       email: "tester@pms.dev",
       name: "Jane Smith",
       passwordHash,
-      role: Role.TESTER,
     },
   });
 
+  const workspace = await prisma.workspace.upsert({
+    where: { slug: "demo" },
+    update: {},
+    create: {
+      name: "Demo Workspace",
+      slug: "demo",
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.workspaceMember.createMany({
+    data: [
+      { userId: admin.id, workspaceId: workspace.id, role: Role.ADMIN },
+      { userId: pm.id, workspaceId: workspace.id, role: Role.PROJECT_MANAGER },
+      { userId: dev.id, workspaceId: workspace.id, role: Role.DEVELOPER },
+      { userId: tester.id, workspaceId: workspace.id, role: Role.TESTER },
+    ],
+    skipDuplicates: true,
+  });
+
   const project = await prisma.project.upsert({
-    where: { key: "PMS" },
+    where: { workspaceId_key: { workspaceId: workspace.id, key: "PMS" } },
     update: {},
     create: {
       name: "Project Management System",
@@ -59,6 +75,7 @@ async function main() {
       description: "Internal project management tool",
       status: "ACTIVE",
       startDate: new Date(),
+      workspaceId: workspace.id,
     },
   });
 
@@ -72,7 +89,7 @@ async function main() {
     skipDuplicates: true,
   });
 
-  console.log("Seeded:", { admin, pm, dev, tester, project });
+  console.log("Seeded:", { admin, pm, dev, tester, workspace, project });
 }
 
 main()

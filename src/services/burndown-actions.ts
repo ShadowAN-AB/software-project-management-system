@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember, getSprintProjectId } from "@/lib/authorization";
+import { requireProjectMember, getSprintProjectId , resolveDefaultWorkspace} from "@/lib/authorization";
 import { eachDayOfInterval, startOfDay, isAfter } from "date-fns";
 
 export type BurndownPoint = {
@@ -14,11 +14,13 @@ export type BurndownPoint = {
 export async function getBurndownData(sprintId: string): Promise<BurndownPoint[]> {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
   const projectId = await getSprintProjectId(sprintId);
   if (!projectId) return [];
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return [];
 
   const sprint = await prisma.sprint.findUnique({

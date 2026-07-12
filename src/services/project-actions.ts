@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireProjectMember } from "@/lib/authorization";
+import { requireProjectMember , resolveDefaultWorkspace} from "@/lib/authorization";
 import { projectSchema } from "@/lib/validations";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -13,21 +13,16 @@ import { PROJECT_TEMPLATES } from "@/lib/project-templates";
 export async function getProjects() {
   const session = await auth();
   if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
 
-  if (session.user.role === "ADMIN") {
-    return prisma.project.findMany({
-      include: {
-        members: { include: { user: true } },
-        _count: { select: { tasks: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-  }
+  const where =
+    ctx.role === "ADMIN"
+      ? { workspaceId: ctx.workspaceId }
+      : { workspaceId: ctx.workspaceId, members: { some: { userId: session.user.id } } };
 
   return prisma.project.findMany({
-    where: {
-      members: { some: { userId: session.user.id } },
-    },
+    where,
     include: {
       members: { include: { user: true } },
       _count: { select: { tasks: true } },
@@ -39,8 +34,10 @@ export async function getProjects() {
 export async function getProject(id: string) {
   const session = await auth();
   if (!session?.user) return null;
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return null;
 
-  const isMember = await requireProjectMember(id, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(id, session.user.id, ctx);
   if (!isMember) return null;
 
   return prisma.project.findUnique({
@@ -67,7 +64,9 @@ export async function createProject(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can create projects" };
   }
 
@@ -84,7 +83,7 @@ export async function createProject(
   }
 
   const existing = await prisma.project.findUnique({
-    where: { key: parsed.data.key },
+    where: { workspaceId_key: { workspaceId: ctx.workspaceId, key: parsed.data.key } },
   });
   if (existing) {
     return { success: false, error: "Project key already exists" };
@@ -97,10 +96,11 @@ export async function createProject(
       description: parsed.data.description || null,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
       endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
+      workspace: { connect: { id: ctx.workspaceId } },
       members: {
         create: {
           userId: session.user.id,
-          role: session.user.role,
+          role: ctx.role,
         },
       },
     },
@@ -115,8 +115,8 @@ export async function createProject(
     },
   });
 
-  revalidatePath("/dashboard");
-  redirect(`/projects/${project.id}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/dashboard`);
+  redirect(`/w/${ctx.workspaceSlug}/projects/${project.id}`);
 }
 
 export async function createProjectFromTemplate(
@@ -125,7 +125,9 @@ export async function createProjectFromTemplate(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can create projects" };
   }
 
@@ -148,7 +150,7 @@ export async function createProjectFromTemplate(
   }
 
   const existing = await prisma.project.findUnique({
-    where: { key: parsed.data.key },
+    where: { workspaceId_key: { workspaceId: ctx.workspaceId, key: parsed.data.key } },
   });
   if (existing) {
     return { success: false, error: "Project key already exists" };
@@ -161,10 +163,11 @@ export async function createProjectFromTemplate(
       description: parsed.data.description || null,
       startDate: parsed.data.startDate ? new Date(parsed.data.startDate) : null,
       endDate: parsed.data.endDate ? new Date(parsed.data.endDate) : null,
+      workspace: { connect: { id: ctx.workspaceId } },
       members: {
         create: {
           userId: session.user.id,
-          role: session.user.role,
+          role: ctx.role,
         },
       },
     },
@@ -210,19 +213,21 @@ export async function createProjectFromTemplate(
     },
   });
 
-  revalidatePath("/dashboard");
-  redirect(`/projects/${project.id}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/dashboard`);
+  redirect(`/w/${ctx.workspaceSlug}/projects/${project.id}`);
 }
 
 export async function updateProjectStatus(projectId: string, status: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can change project status" };
   }
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
   await prisma.project.update({
@@ -230,8 +235,8 @@ export async function updateProjectStatus(projectId: string, status: string) {
     data: { status: status as "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "ARCHIVED" },
   });
 
-  revalidatePath(`/projects/${projectId}`);
-  revalidatePath("/dashboard");
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/dashboard`);
   return { success: true, data: undefined };
 }
 
@@ -242,12 +247,14 @@ export async function addProjectMember(
 ) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can manage members" };
   }
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "You are not a member of this project" };
 
   await prisma.projectMember.create({
@@ -266,29 +273,42 @@ export async function addProjectMember(
     await sendProjectAddedEmail(addedUser.email, session.user.name ?? "Someone", project.name, projectId);
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
 export async function getAllUsers() {
-  return prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true },
-    orderBy: { name: "asc" },
+  const session = await auth();
+  if (!session?.user) return [];
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return [];
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId: ctx.workspaceId },
+    include: { user: { select: { id: true, name: true, email: true } } },
+    orderBy: { user: { name: "asc" } },
   });
+  return members.map((m) => ({
+    id: m.user.id,
+    name: m.user.name,
+    email: m.user.email,
+    role: m.role,
+  }));
 }
 
 export async function removeProjectMember(projectId: string, memberId: string) {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
+  const ctx = await resolveDefaultWorkspace(session.user.id);
+  if (!ctx) return { success: false, error: "No workspace" };
 
-  if (!["ADMIN", "PROJECT_MANAGER"].includes(session.user.role)) {
+  if (!["ADMIN", "PROJECT_MANAGER"].includes(ctx.role)) {
     return { success: false, error: "Only admins and PMs can manage members" };
   }
 
-  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  const isMember = await requireProjectMember(projectId, session.user.id, ctx);
   if (!isMember) return { success: false, error: "You are not a member of this project" };
 
   await prisma.projectMember.delete({ where: { id: memberId } });
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/w/${ctx.workspaceSlug}/projects/${projectId}`);
   return { success: true, data: undefined };
 }
