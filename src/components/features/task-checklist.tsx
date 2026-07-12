@@ -137,7 +137,7 @@ export function TaskChecklist({
           <div className="space-y-1">
             <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-emerald-500 to-teal-500 h-1.5 rounded-full transition-all duration-300"
+                className="bg-zinc-900 dark:bg-zinc-100 h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>

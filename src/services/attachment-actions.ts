@@ -2,11 +2,12 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { supabase, ATTACHMENTS_BUCKET } from "@/lib/supabase";
 import { requireProjectMember, getTaskProjectId } from "@/lib/authorization";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 export async function uploadAttachment(
   taskId: string,
@@ -23,17 +24,30 @@ export async function uploadAttachment(
   const file = formData.get("file") as File;
   if (!file) return { success: false, error: "No file provided" };
   if (file.size > MAX_FILE_SIZE) {
-    return { success: false, error: "File too large (max 5MB)" };
+    return { success: false, error: "File too large (max 25MB)" };
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-100) || "file";
+  const storagePath = `${taskId}/${crypto.randomUUID()}-${safeName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(ATTACHMENTS_BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return { success: false, error: `Upload failed: ${uploadError.message}` };
+  }
 
   await prisma.attachment.create({
     data: {
       filename: file.name,
       fileSize: file.size,
       mimeType: file.type || "application/octet-stream",
-      data: buffer,
+      storagePath,
       taskId,
       uploadedBy: session.user.id,
     },
@@ -65,6 +79,7 @@ export async function deleteAttachment(attachmentId: string): Promise<ActionResu
 
   if (!canDelete) return { success: false, error: "Permission denied" };
 
+  await supabase.storage.from(ATTACHMENTS_BUCKET).remove([attachment.storagePath]);
   await prisma.attachment.delete({ where: { id: attachmentId } });
 
   revalidatePath(`/tasks/${attachment.taskId}`);

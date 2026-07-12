@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { updateUserRole, deleteUser } from "@/services/admin-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Trash2, Shield, FolderKanban, ListTodo } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -117,16 +118,7 @@ export function UserManagement({
                     {/* User info */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-bold text-white">
-                            {user.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2)}
-                          </span>
-                        </div>
+                        <Avatar name={user.name} size="lg" />
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-zinc-900 truncate">
                             {user.name}

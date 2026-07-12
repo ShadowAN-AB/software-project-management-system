@@ -130,7 +130,7 @@ export function TaskAttachments({
             <Paperclip className="h-8 w-8 text-zinc-200 mx-auto mb-2" strokeWidth={1.5} />
             <p className="text-sm text-zinc-400">No attachments</p>
             <p className="text-xs text-zinc-300 mt-0.5">
-              Upload files up to 5MB
+              Upload files up to 25MB
             </p>
           </div>
         ) : (
@@ -165,6 +165,7 @@ export function TaskAttachments({
                       href={`/api/attachments/${a.id}`}
                       download={a.filename}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      aria-label={`Download ${a.filename}`}
                       title="Download"
                     >
                       <Download className="h-3.5 w-3.5" />
@@ -173,6 +174,7 @@ export function TaskAttachments({
                       <button
                         onClick={() => handleDelete(a.id, a.filename)}
                         className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        aria-label={`Delete ${a.filename}`}
                         title="Delete"
                       >
                         <Trash2 className="h-3.5 w-3.5" />

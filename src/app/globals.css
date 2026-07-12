@@ -113,12 +113,9 @@ body {
   -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
 }
 
-/* Gradient text utility */
+/* Monochrome accent text — subtly lighter than the primary heading */
 .text-gradient {
-  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #71717a; /* zinc-500 */
 }
 
 /* Animated gradient border */

@@ -35,11 +35,11 @@ function LoginForm() {
     <div className="min-h-screen flex">
       {/* Left panel — gradient */}
       <div className="hidden lg:flex lg:w-1/2 bg-zinc-950 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 via-violet-600/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/40 via-zinc-900/20 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-zinc-950 to-transparent" />
         <div className="relative z-10 flex flex-col justify-end p-12">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center mb-8">
-            <FolderKanban className="h-5 w-5 text-white" strokeWidth={2} />
+          <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center mb-8">
+            <FolderKanban className="h-5 w-5 text-zinc-950" strokeWidth={2} />
           </div>
           <h2 className="text-3xl font-bold text-white tracking-tight">
             Ship projects,
@@ -57,7 +57,7 @@ function LoginForm() {
       <div className="flex-1 flex items-center justify-center px-6 bg-zinc-50">
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
               <FolderKanban className="h-4 w-4 text-white" strokeWidth={2.5} />
             </div>
             <span className="text-lg font-bold tracking-tight">PMS</span>

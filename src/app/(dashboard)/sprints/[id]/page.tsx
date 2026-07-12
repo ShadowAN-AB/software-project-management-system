@@ -8,7 +8,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import { ArrowLeft, Target, Clock } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { SprintActions } from "@/components/features/sprint-actions";
+import { SprintActions } from "@/components/features/sprint-actions-panel";
 import { BurndownChart } from "@/components/features/burndown-chart";
 import { ExportCsvButton } from "@/components/features/export-csv-button";
 import { SprintRetro } from "@/components/features/sprint-retro";

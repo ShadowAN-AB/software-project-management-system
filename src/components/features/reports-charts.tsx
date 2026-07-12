@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 
 type ReportsData = {
   tasksByStatus: Record<string, number>;
@@ -20,25 +21,25 @@ type ReportsData = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  BACKLOG: "bg-zinc-400",
-  TODO: "bg-blue-500",
-  IN_PROGRESS: "bg-amber-500",
-  IN_REVIEW: "bg-violet-500",
-  DONE: "bg-emerald-500",
+  BACKLOG: "bg-zinc-300 dark:bg-zinc-700",
+  TODO: "bg-zinc-400 dark:bg-zinc-600",
+  IN_PROGRESS: "bg-zinc-500 dark:bg-zinc-500",
+  IN_REVIEW: "bg-zinc-700 dark:bg-zinc-400",
+  DONE: "bg-zinc-900 dark:bg-zinc-100",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  LOW: "bg-zinc-400",
-  MEDIUM: "bg-blue-500",
-  HIGH: "bg-amber-500",
-  CRITICAL: "bg-red-500",
+  LOW: "bg-zinc-300 dark:bg-zinc-700",
+  MEDIUM: "bg-zinc-500 dark:bg-zinc-500",
+  HIGH: "bg-zinc-700 dark:bg-zinc-300",
+  CRITICAL: "bg-zinc-900 dark:bg-zinc-100",
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  TASK: "bg-zinc-500",
-  FEATURE: "bg-violet-500",
-  BUG: "bg-red-500",
-  IMPROVEMENT: "bg-cyan-500",
+  TASK: "bg-zinc-400 dark:bg-zinc-600",
+  FEATURE: "bg-zinc-600 dark:bg-zinc-400",
+  BUG: "bg-zinc-900 dark:bg-zinc-100",
+  IMPROVEMENT: "bg-zinc-500 dark:bg-zinc-500",
 };
 
 function BarChart({
@@ -98,7 +99,6 @@ function MiniTrend({
   }
 
   const max = Math.max(...data.map((d) => Math.max(d.created, d.completed)), 1);
-  const barWidth = Math.max(100 / Math.max(data.length, 1) - 1, 2);
 
   return (
     <div>
@@ -109,12 +109,12 @@ function MiniTrend({
             className="flex-1 flex flex-col items-center gap-[1px] justify-end h-full"
           >
             <div
-              className="w-full bg-emerald-400 rounded-t-sm transition-all duration-500"
+              className="w-full bg-zinc-900 dark:bg-zinc-100 rounded-t-sm transition-all duration-500"
               style={{ height: `${(d.completed / max) * 100}%`, minHeight: d.completed > 0 ? "2px" : "0" }}
               title={`${d.completed} completed`}
             />
             <div
-              className="w-full bg-blue-400 rounded-t-sm transition-all duration-500"
+              className="w-full bg-zinc-400 dark:bg-zinc-600 rounded-t-sm transition-all duration-500"
               style={{ height: `${(d.created / max) * 100}%`, minHeight: d.created > 0 ? "2px" : "0" }}
               title={`${d.created} created`}
             />
@@ -123,10 +123,10 @@ function MiniTrend({
       </div>
       <div className="flex items-center justify-center gap-4 mt-3 text-xs text-zinc-400">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-blue-400" /> Created
+          <span className="h-2 w-2 rounded-sm bg-zinc-400 dark:bg-zinc-600" /> Created
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-emerald-400" /> Completed
+          <span className="h-2 w-2 rounded-sm bg-zinc-900 dark:bg-zinc-100" /> Completed
         </span>
       </div>
     </div>
@@ -201,20 +201,11 @@ export function ReportsCharts({ data }: { data: ReportsData }) {
               </p>
             ) : (
               <div className="space-y-3">
-                {data.topAssignees.map((a, i) => {
+                {data.topAssignees.map((a) => {
                   const max = data.topAssignees[0]?.count ?? 1;
                   return (
                     <div key={a.name} className="flex items-center gap-3">
-                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[9px] font-bold text-white">
-                          {a.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2)}
-                        </span>
-                      </div>
+                      <Avatar name={a.name} size="sm" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs font-medium text-zinc-700 truncate">
@@ -224,9 +215,9 @@ export function ReportsCharts({ data }: { data: ReportsData }) {
                             {a.count} tasks
                           </span>
                         </div>
-                        <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full"
+                            className="h-full bg-zinc-900 dark:bg-zinc-100 rounded-full"
                             style={{ width: `${(a.count / max) * 100}%` }}
                           />
                         </div>
@@ -272,14 +263,14 @@ export function ReportsCharts({ data }: { data: ReportsData }) {
                           {s.completed}/{s.total} ({pct}%)
                         </span>
                       </div>
-                      <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             pct === 100
-                              ? "bg-emerald-500"
+                              ? "bg-zinc-900 dark:bg-zinc-100"
                               : pct >= 50
-                                ? "bg-blue-500"
-                                : "bg-amber-500"
+                                ? "bg-zinc-600 dark:bg-zinc-400"
+                                : "bg-zinc-400 dark:bg-zinc-600"
                           }`}
                           style={{ width: `${pct}%` }}
                         />

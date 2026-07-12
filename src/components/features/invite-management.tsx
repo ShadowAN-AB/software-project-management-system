@@ -10,7 +10,6 @@ import {
   Copy,
   Check,
   Trash2,
-  Clock,
   CheckCircle2,
   XCircle,
   Send,
@@ -74,8 +73,19 @@ export function InviteManagement({
       if (result.success) {
         const token = result.data.token;
         const link = `${window.location.origin}/register?token=${token}`;
-        await navigator.clipboard.writeText(link);
-        setSuccess("Invitation created! Link copied to clipboard.");
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(link);
+          copied = true;
+        } catch {
+          // Clipboard access can fail if the document isn't focused, or the
+          // browser blocks unprompted writes — fall back to showing the link.
+        }
+        setSuccess(
+          copied
+            ? "Invitation created! Link copied to clipboard."
+            : `Invitation created. Copy link: ${link}`,
+        );
         setEmail("");
       } else {
         setError(result.error ?? "Failed to create invitation");
@@ -226,6 +236,7 @@ export function InviteManagement({
                     <button
                       onClick={() => copyLink(invite.token, invite.id)}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+                      aria-label="Copy invite link"
                       title="Copy invite link"
                     >
                       {copiedId === invite.id ? (
@@ -237,6 +248,7 @@ export function InviteManagement({
                     <button
                       onClick={() => handleRevoke(invite.id)}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      aria-label="Revoke invitation"
                       title="Revoke invitation"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

@@ -1,14 +1,13 @@
 "use client";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
-  CheckCircle,
   AlertTriangle,
   Clock,
   TrendingUp,
   Users,
-  ListTodo,
   Target,
 } from "lucide-react";
 import { formatDistanceToNow, format, differenceInDays } from "date-fns";
@@ -62,7 +61,6 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
     overdueCount,
   } = data;
 
-  const activeSprint = sprints.find((s) => s.status === "ACTIVE");
   const inProgressCount = statusCounts["IN_PROGRESS"] ?? 0;
   const todoCount = statusCounts["TODO"] ?? 0;
 
@@ -220,17 +218,7 @@ export function ProjectOverview({ data }: { data: OverviewData }) {
 
               return (
                 <div key={member.id} className="flex items-center gap-3">
-                  <div
-                    className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center flex-shrink-0"
-                    title={member.user.name}
-                  >
-                    <span className="text-[10px] font-medium text-white">
-                      {member.user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </span>
-                  </div>
+                  <Avatar name={member.user.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-medium text-zinc-700 truncate">

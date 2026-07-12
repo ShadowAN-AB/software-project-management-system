@@ -16,8 +16,8 @@ export default async function WorkloadPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Team Workload</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Team workload</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
           Capacity planning and task distribution across the team
         </p>
       </div>

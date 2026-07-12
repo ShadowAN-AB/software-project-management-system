@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { addProjectMember, removeProjectMember } from "@/services/project-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UserPlus, X, Users, ChevronDown } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
+import { UserPlus, X, Users } from "lucide-react";
 
 type Member = {
   id: string;
@@ -142,16 +143,7 @@ export function TeamManagement({
                     className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-white transition-colors text-left disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-bold text-white">
-                          {user.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2)}
-                        </span>
-                      </div>
+                      <Avatar name={user.name} size="sm" />
                       <div>
                         <p className="text-sm font-medium text-zinc-900">
                           {user.name}
@@ -186,16 +178,7 @@ export function TeamManagement({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-white">
-                      {member.user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </span>
-                  </div>
+                  <Avatar name={member.user.name} size="md" />
                   <div>
                     <p className="text-sm font-medium text-zinc-900">
                       {member.user.name}
@@ -220,6 +203,7 @@ export function TeamManagement({
                         handleRemove(member.id, member.user.name)
                       }
                       className="p-1 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      aria-label="Remove from project"
                       title="Remove from project"
                     >
                       <X className="h-3.5 w-3.5" />

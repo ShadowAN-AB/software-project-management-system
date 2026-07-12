@@ -5,7 +5,6 @@ import { Bell, Check, CheckCheck } from "lucide-react";
 import { markAsRead, markAllAsRead } from "@/services/notification-actions";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEventStream } from "@/hooks/use-event-stream";
 import type { SSEFrame } from "@/lib/sse-events";
 
@@ -38,11 +37,20 @@ export function NotificationBell({
   userId: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const [localNotifications, setLocalNotifications] = useState(initialNotifications);
   const [localUnreadCount, setLocalUnreadCount] = useState(initialUnreadCount);
+  const [lastInitialNotifications, setLastInitialNotifications] = useState(initialNotifications);
+  const [lastInitialUnreadCount, setLastInitialUnreadCount] = useState(initialUnreadCount);
+  if (lastInitialNotifications !== initialNotifications) {
+    setLastInitialNotifications(initialNotifications);
+    setLocalNotifications(initialNotifications);
+  }
+  if (lastInitialUnreadCount !== initialUnreadCount) {
+    setLastInitialUnreadCount(initialUnreadCount);
+    setLocalUnreadCount(initialUnreadCount);
+  }
 
   useEventStream({
     channels: [],
@@ -169,6 +177,7 @@ export function NotificationBell({
                     <button
                       onClick={() => handleMarkRead(n.id)}
                       className="p-1 rounded text-zinc-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0"
+                      aria-label="Mark as read"
                       title="Mark as read"
                     >
                       <Check className="h-3.5 w-3.5" />

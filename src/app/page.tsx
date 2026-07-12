@@ -21,7 +21,7 @@ export default async function Home() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex justify-between h-16 items-center">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
                 <FolderKanban className="h-4 w-4 text-white" strokeWidth={2.5} />
               </div>
               <span className="text-lg font-bold tracking-tight">PMS</span>
@@ -50,13 +50,13 @@ export default async function Home() {
         <div className="relative overflow-hidden">
           {/* Grid background */}
           <div className="absolute inset-0 bg-grid bg-grid-fade opacity-40" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-blue-100/60 via-violet-100/30 to-transparent rounded-full blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-zinc-200/60 via-zinc-100/30 to-transparent rounded-full blur-3xl" />
 
           <div className="relative max-w-6xl mx-auto px-6 pt-32 pb-20">
             <div className="max-w-3xl mx-auto text-center">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-medium mb-8">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-700 text-xs font-medium mb-8">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 animate-pulse" />
                 Built for teams that ship
               </div>
 

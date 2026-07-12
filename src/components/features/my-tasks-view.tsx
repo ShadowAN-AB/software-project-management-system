@@ -54,8 +54,8 @@ export function MyTasksView({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-100">My Tasks</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">My Tasks</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
           {tasks.length} task{tasks.length !== 1 ? "s" : ""} assigned to you
         </p>
       </div>
@@ -74,7 +74,7 @@ export function MyTasksView({
               <button
                 type="button"
                 onClick={clearSearch}
-                className="p-1 text-zinc-400 hover:text-zinc-600"
+                className="p-1 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
@@ -100,7 +100,7 @@ export function MyTasksView({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                 Results ({results.length})
               </h2>
               {activeFilter && (
@@ -112,7 +112,7 @@ export function MyTasksView({
           </CardHeader>
           <CardContent className="p-0">
             {results.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-gray-500">
+              <p className="px-6 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
                 No tasks match this query.
               </p>
             ) : (
@@ -123,8 +123,8 @@ export function MyTasksView({
       ) : tasks.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <ListTodo className="h-12 w-12 text-gray-300 mb-4" />
-            <p className="text-gray-500 text-sm">No tasks assigned to you yet</p>
+            <ListTodo className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm">No tasks assigned to you yet</p>
           </CardContent>
         </Card>
       ) : (
@@ -132,7 +132,7 @@ export function MyTasksView({
           {grouped.active.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                   Active ({grouped.active.length})
                 </h2>
               </CardHeader>
@@ -145,7 +145,7 @@ export function MyTasksView({
           {grouped.backlog.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                   Backlog ({grouped.backlog.length})
                 </h2>
               </CardHeader>
@@ -158,7 +158,7 @@ export function MyTasksView({
           {grouped.done.length > 0 && (
             <Card>
               <CardHeader>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-100">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                   Done ({grouped.done.length})
                 </h2>
               </CardHeader>
@@ -181,10 +181,10 @@ function TaskList({ tasks }: { tasks: Task[] }) {
           <Link href={`/tasks/${task.id}`}>
             <div className="flex items-center justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">{task.title}</p>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{task.title}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-400 font-mono">{task.project.key}</span>
-                  <span className="text-xs text-gray-400">{task.project.name}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{task.project.key}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">{task.project.name}</span>
                   {task.sprint && (
                     <span className="text-xs text-blue-500">{task.sprint.name}</span>
                   )}
@@ -196,7 +196,7 @@ function TaskList({ tasks }: { tasks: Task[] }) {
                 )}
                 <PriorityBadge priority={task.priority} />
                 <StatusBadge status={task.status} />
-                <span className="text-xs text-gray-400 whitespace-nowrap">
+                <span className="text-xs text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
                   {formatDistanceToNow(new Date(task.updatedAt), { addSuffix: true })}
                 </span>
               </div>

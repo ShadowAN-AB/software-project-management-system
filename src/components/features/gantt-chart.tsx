@@ -10,9 +10,8 @@ import {
   isWeekend,
   isSameMonth,
 } from "date-fns";
-import { PriorityBadge } from "@/components/ui/badge";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type Task = {
   id: string;
@@ -59,7 +58,7 @@ export function GanttChart({
 
   const cellWidth = daysPerCell === 1 ? 32 : daysPerCell === 7 ? 80 : 18;
 
-  const { timelineStart, timelineEnd, days, weeks, months } = useMemo(() => {
+  const { timelineStart, days, weeks, months } = useMemo(() => {
     const now = new Date();
     const baseStart = startOfWeek(addDays(now, offsetWeeks * 7 - 28), { weekStartsOn: 1 });
     const baseEnd = endOfWeek(addDays(now, offsetWeeks * 7 + 56), { weekStartsOn: 1 });
@@ -104,7 +103,6 @@ export function GanttChart({
 
     return {
       timelineStart: minDate,
-      timelineEnd: maxDate,
       days: dayList,
       weeks: Array.from(weekMap.entries()).map(([key, days]) => ({ key, days })),
       months: Array.from(monthMap.entries()).map(([key, val]) => ({ key, ...val })),

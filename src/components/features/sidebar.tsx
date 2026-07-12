@@ -17,6 +17,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { ThemeToggle } from "./theme-toggle";
 
 const baseNavItems = [
@@ -36,7 +37,7 @@ function Avatar({ name, collapsed }: { name: string; collapsed: boolean }) {
 
   return (
     <div
-      className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-white font-semibold ${
+      className={`flex items-center justify-center rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-100 font-semibold ${
         collapsed ? "h-8 w-8 text-xs" : "h-9 w-9 text-sm"
       }`}
     >
@@ -78,8 +79,8 @@ export function Sidebar({
       <div className="flex items-center justify-between h-16 px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-              <FolderKanban className="h-4.5 w-4.5 text-white" strokeWidth={2} />
+            <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center">
+              <FolderKanban className="h-4.5 w-4.5 text-zinc-950" strokeWidth={2} />
             </div>
             <span className="text-[15px] font-bold text-white tracking-tight">
               PMS
@@ -87,8 +88,8 @@ export function Sidebar({
           </Link>
         )}
         {collapsed && (
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center mx-auto">
-            <FolderKanban className="h-4.5 w-4.5 text-white" strokeWidth={2} />
+          <div className="h-8 w-8 rounded-lg bg-white flex items-center justify-center mx-auto">
+            <FolderKanban className="h-4.5 w-4.5 text-zinc-950" strokeWidth={2} />
           </div>
         )}
       </div>
@@ -158,15 +159,15 @@ export function Sidebar({
             </div>
           )}
           {!collapsed && (
-            <form action="/api/auth/signout" method="POST">
-              <button
-                type="submit"
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
-                title="Sign out"
-              >
-                <LogOut className="h-4 w-4" strokeWidth={1.75} />
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              aria-label="Sign out"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
           )}
         </div>
       </div>

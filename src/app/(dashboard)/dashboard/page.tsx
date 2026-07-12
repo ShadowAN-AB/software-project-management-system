@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 
 export default async function DashboardPage() {
   const [session, stats, adminCount] = await Promise.all([
@@ -29,25 +30,25 @@ export default async function DashboardPage() {
       label: "Projects",
       value: stats.projectCount,
       icon: FolderKanban,
-      accent: "text-blue-500",
+      accent: "text-zinc-400 dark:text-zinc-500",
     },
     {
       label: "Total tasks",
       value: stats.totalTasks,
       icon: ListTodo,
-      accent: "text-violet-500",
+      accent: "text-zinc-400 dark:text-zinc-500",
     },
     {
       label: "In progress",
       value: stats.tasksByStatus.IN_PROGRESS ?? 0,
       icon: Clock,
-      accent: "text-amber-500",
+      accent: "text-zinc-400 dark:text-zinc-500",
     },
     {
       label: "Completed",
       value: stats.tasksByStatus.DONE ?? 0,
       icon: CheckCircle2,
-      accent: "text-emerald-500",
+      accent: "text-zinc-400 dark:text-zinc-500",
     },
   ];
 
@@ -186,9 +187,9 @@ export default async function DashboardPage() {
                           {progress}%
                         </span>
                       </div>
-                      <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                      <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-blue-500 to-violet-500 h-1.5 rounded-full transition-all duration-500"
+                          className="bg-zinc-900 dark:bg-zinc-100 h-1.5 rounded-full transition-all duration-500"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -229,14 +230,7 @@ export default async function DashboardPage() {
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0 flex items-center gap-3">
-                        <div className="h-7 w-7 rounded-full bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-medium text-zinc-600">
-                            {log.user.name
-                              .split(" ")
-                              .map((n: string) => n[0])
-                              .join("")}
-                          </span>
-                        </div>
+                        <Avatar name={log.user.name} size="sm" />
                         <div className="min-w-0">
                           <p className="text-sm text-zinc-900">
                             <span className="font-medium">{log.user.name}</span>{" "}

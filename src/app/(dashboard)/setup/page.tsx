@@ -1,7 +1,6 @@
 "use client";
 
 import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
 import { bootstrapAdmin } from "@/services/admin-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,6 @@ export default function SetupPage() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const router = useRouter();
 
   function handlePromote() {
     setError(null);
@@ -33,8 +31,8 @@ export default function SetupPage() {
     <div className="max-w-lg mx-auto mt-20">
       <Card>
         <CardContent className="flex flex-col items-center text-center py-12 px-8">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-5">
-            <ShieldCheck className="h-7 w-7 text-white" strokeWidth={1.75} />
+          <div className="h-14 w-14 rounded-2xl bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center mb-5">
+            <ShieldCheck className="h-7 w-7 text-white dark:text-zinc-900" strokeWidth={1.75} />
           </div>
 
           {success ? (

@@ -7,7 +7,10 @@ const mockSession = {
 };
 
 const mockAuth = vi.fn();
-vi.mock("@/lib/auth", () => ({ auth: mockAuth }));
+vi.mock("@/lib/auth", () => ({
+  auth: mockAuth,
+  invalidateRoleCache: vi.fn(),
+}));
 
 const mockPrisma = {
   user: {

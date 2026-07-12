@@ -23,7 +23,7 @@ function NewSprintForm() {
     <div className="max-w-2xl mx-auto space-y-6">
       <Link
         href={projectId ? `/projects/${projectId}` : "/sprints"}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+        className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
@@ -31,14 +31,14 @@ function NewSprintForm() {
 
       <Card>
         <CardHeader>
-          <h1 className="text-xl font-bold text-gray-900">Create New Sprint</h1>
+          <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">Create sprint</h1>
         </CardHeader>
         <CardContent>
           <form action={action} className="space-y-4">
             <input type="hidden" name="projectId" value={projectId} />
 
             {state && !state.success && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg text-sm text-red-600 dark:text-red-400">
                 {state.error}
               </div>
             )}
@@ -52,14 +52,14 @@ function NewSprintForm() {
             />
 
             <div className="space-y-1">
-              <label htmlFor="goal" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="goal" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Sprint Goal
               </label>
               <textarea
                 id="goal"
                 name="goal"
                 rows={2}
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="block w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 focus:border-transparent"
                 placeholder="What do we aim to achieve?"
               />
             </div>
@@ -100,7 +100,7 @@ function NewSprintForm() {
 
 export default function NewSprintPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-zinc-400 dark:text-zinc-500">Loading...</div>}>
       <NewSprintForm />
     </Suspense>
   );

@@ -2,7 +2,6 @@ import { getProject, getAllUsers } from "@/services/project-actions";
 import { getProjectOverview } from "@/services/overview-actions";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
-import { StatusBadge } from "@/components/ui/badge";
 import { Timer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { CreateTaskForm } from "@/components/features/create-task-form";
@@ -11,6 +10,7 @@ import { ProjectOverview } from "@/components/features/project-overview";
 import { ProjectViewSwitcher } from "@/components/features/project-view-switcher";
 import { TeamManagement } from "@/components/features/team-management";
 import { ExportCsvButton } from "@/components/features/export-csv-button";
+import { ProjectStatusControl } from "@/components/features/project-status-control";
 
 export default async function ProjectDetailPage({
   params,
@@ -44,7 +44,11 @@ export default async function ProjectDetailPage({
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{project.name}</h1>
-            <StatusBadge status={project.status} />
+            <ProjectStatusControl
+              projectId={project.id}
+              status={project.status}
+              canManage={canManage}
+            />
           </div>
           <p className="text-sm text-gray-500 mt-1 font-mono">{project.key}</p>
           {project.description && (

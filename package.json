@@ -16,15 +16,19 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.110.0",
     "@prisma/client": "^6.9.0",
+    "@supabase/supabase-js": "^2.110.2",
+    "@types/pdfkit": "^0.17.6",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",
     "next": "16.2.10",
     "next-auth": "^5.0.0-beta.25",
+    "pdfkit": "^0.19.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "resend": "^6.17.1",
     "zod": "^3.24.0"
   },

@@ -18,7 +18,9 @@ export function useEventStream({
   skipOwnEvents?: boolean;
 }) {
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   // Even with no explicit channels, the server auto-subscribes user:{userId}
   const channelKey = channels.length > 0 ? channels.sort().join(",") : "__user_only__";
@@ -87,5 +89,8 @@ export function useEventStream({
       clearTimeout(retryTimeout);
       es?.close();
     };
+    // channels is intentionally excluded — channelKey is the sorted-joined
+    // stable identity we actually depend on; the array itself changes each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelKey, onMessage]);
 }

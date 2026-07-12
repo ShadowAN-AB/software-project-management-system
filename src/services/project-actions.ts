@@ -181,6 +181,11 @@ export async function createProjectFromTemplate(
   }
 
   if (template.tasks.length > 0) {
+    // Space template tasks out so the Gantt view has meaningful bars from the
+    // moment the project is created. Each task gets a due date 3 days after the
+    // previous one, starting a week out.
+    const DAY_MS = 86_400_000;
+    const baseline = Date.now() + 7 * DAY_MS;
     await prisma.task.createMany({
       data: template.tasks.map((t, i) => ({
         title: t.title,
@@ -188,6 +193,7 @@ export async function createProjectFromTemplate(
         status: t.status,
         priority: t.priority,
         type: t.type,
+        dueDate: new Date(baseline + i * 3 * DAY_MS),
         projectId: project.id,
         creatorId: session.user.id,
         order: i + 1,

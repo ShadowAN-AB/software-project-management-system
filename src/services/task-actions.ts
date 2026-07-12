@@ -11,6 +11,7 @@ import { createNotification } from "@/services/notification-actions";
 import { eventBus } from "@/lib/event-bus";
 import type { SSEFrame } from "@/lib/sse-events";
 import { sendTaskAssignedEmail, sendTaskStatusEmail, sendCommentEmail } from "@/lib/email";
+import { removeAttachmentObjects } from "@/lib/supabase";
 
 export async function getTasksByProject(projectId: string) {
   const session = await auth();
@@ -151,6 +152,7 @@ export async function createTask(
       status: task.status,
       priority: task.priority,
       type: task.type,
+      order: task.order,
       dueDate: task.dueDate?.toISOString() ?? null,
       assignee: null,
       labels: [],
@@ -290,7 +292,14 @@ export async function deleteTask(taskId: string) {
   const isMember = await requireProjectMember(taskProjectId, session.user.id, session.user.role);
   if (!isMember) return { success: false, error: "Not a member of this project" };
 
+  const attachments = await prisma.attachment.findMany({
+    where: { taskId },
+    select: { storagePath: true },
+  });
+
   const task = await prisma.task.delete({ where: { id: taskId } });
+
+  await removeAttachmentObjects(attachments.map((a) => a.storagePath));
 
   eventBus.emit(`project:${task.projectId}`, {
     type: "task:deleted",
@@ -299,6 +308,54 @@ export async function deleteTask(taskId: string) {
   } as SSEFrame);
 
   revalidatePath(`/projects/${task.projectId}`);
+  return { success: true, data: undefined };
+}
+
+export async function reorderTasks(
+  projectId: string,
+  status: TaskStatus,
+  orderedIds: string[]
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  const isMember = await requireProjectMember(projectId, session.user.id, session.user.role);
+  if (!isMember) return { success: false, error: "Not a member of this project" };
+
+  if (orderedIds.length === 0) return { success: true, data: undefined };
+  if (orderedIds.length > 500) return { success: false, error: "Too many tasks" };
+
+  const dedup = Array.from(new Set(orderedIds));
+  if (dedup.length !== orderedIds.length) {
+    return { success: false, error: "Duplicate task ids" };
+  }
+
+  const existing = await prisma.task.findMany({
+    where: { id: { in: orderedIds }, projectId },
+    select: { id: true },
+  });
+  if (existing.length !== orderedIds.length) {
+    return { success: false, error: "Task ids do not all belong to this project" };
+  }
+
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.task.update({
+        where: { id },
+        data: { order: index, status },
+      })
+    )
+  );
+
+  eventBus.emit(`project:${projectId}`, {
+    type: "task:reordered",
+    _actorId: session.user.id,
+    projectId,
+    status,
+    orderedIds,
+  } as SSEFrame);
+
+  revalidatePath(`/projects/${projectId}`);
   return { success: true, data: undefined };
 }
 
@@ -346,9 +403,16 @@ export async function bulkDeleteTasks(projectId: string, taskIds: string[]) {
   if (taskIds.length === 0) return { success: false, error: "No tasks selected" };
   if (taskIds.length > 50) return { success: false, error: "Maximum 50 tasks at once" };
 
+  const attachments = await prisma.attachment.findMany({
+    where: { taskId: { in: taskIds } },
+    select: { storagePath: true },
+  });
+
   await prisma.task.deleteMany({
     where: { id: { in: taskIds }, projectId },
   });
+
+  await removeAttachmentObjects(attachments.map((a) => a.storagePath));
 
   eventBus.emit(`project:${projectId}`, {
     type: "task:bulkDeleted",

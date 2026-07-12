@@ -19,28 +19,28 @@ export default async function AdminPage() {
 
   const statCards = [
     {
-      label: "Total Users",
+      label: "Total users",
       value: stats.userCount,
       icon: Users,
-      gradient: "from-blue-500 to-indigo-600",
+      accent: "text-blue-500",
     },
     {
       label: "Projects",
       value: stats.projectCount,
       icon: FolderKanban,
-      gradient: "from-emerald-500 to-teal-600",
+      accent: "text-emerald-500",
     },
     {
-      label: "Total Tasks",
+      label: "Total tasks",
       value: stats.taskCount,
       icon: ListTodo,
-      gradient: "from-violet-500 to-purple-600",
+      accent: "text-violet-500",
     },
     {
       label: "Admins",
       value: stats.roleDistribution.ADMIN ?? 0,
       icon: ShieldCheck,
-      gradient: "from-amber-500 to-orange-600",
+      accent: "text-amber-500",
     },
   ];
 
@@ -59,20 +59,19 @@ export default async function AdminPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((stat) => (
           <Card key={stat.label}>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div
-                  className={`h-10 w-10 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center`}
-                >
-                  <stat.icon className="h-5 w-5 text-white" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-zinc-900">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-zinc-500">{stat.label}</p>
-                </div>
+            <CardContent className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  {stat.label}
+                </p>
+                <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight mt-2">
+                  {stat.value}
+                </p>
               </div>
+              <stat.icon
+                className={`h-4 w-4 ${stat.accent}`}
+                strokeWidth={1.75}
+              />
             </CardContent>
           </Card>
         ))}

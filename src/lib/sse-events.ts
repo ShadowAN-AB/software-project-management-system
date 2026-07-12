@@ -9,6 +9,7 @@ export type SSEEvent =
         status: TaskStatus;
         priority: string;
         type: string;
+        order: number;
         dueDate: string | null;
         assignee: { id: string; name: string } | null;
         labels: { id: string; label: { id: string; name: string; color: string } }[];
@@ -38,6 +39,12 @@ export type SSEEvent =
   | {
       type: "task:bulkDeleted";
       taskIds: string[];
+    }
+  | {
+      type: "task:reordered";
+      projectId: string;
+      status: TaskStatus;
+      orderedIds: string[];
     }
   | {
       type: "comment:added";

@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireProjectMember, getSprintProjectId } from "@/lib/authorization";
-import { eachDayOfInterval, startOfDay, isBefore, isAfter } from "date-fns";
+import { eachDayOfInterval, startOfDay, isAfter } from "date-fns";
 
 export type BurndownPoint = {
   date: string;

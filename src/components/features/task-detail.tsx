@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { updateTask, updateTaskStatus, deleteTask } from "@/services/task-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import {
   Calendar,
   User,
@@ -20,6 +19,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { TaskStatus } from "@prisma/client";
+import { Markdown } from "@/components/ui/markdown";
 
 type TaskData = {
   id: string;
@@ -211,20 +211,27 @@ export function TaskDetail({
             Description
           </p>
           {isEditing ? (
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 dark:bg-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              placeholder="Add a description..."
-            />
+            <>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={6}
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 dark:bg-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-zinc-100/20 focus:border-zinc-900 dark:focus:border-zinc-100 font-mono"
+                placeholder="Add a description... (Markdown supported)"
+              />
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+                Markdown supported: **bold**, `code`, [links](url), lists, tables
+              </p>
+            </>
           ) : (
             <div
-              className="text-sm text-zinc-600 leading-relaxed cursor-pointer hover:bg-zinc-50 rounded-lg p-3 -m-3 transition-colors min-h-[60px]"
+              className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-lg p-3 -m-3 transition-colors min-h-[60px]"
               onClick={() => setIsEditing(true)}
             >
-              {task.description || (
-                <span className="text-zinc-400 italic">
+              {task.description ? (
+                <Markdown>{task.description}</Markdown>
+              ) : (
+                <span className="text-sm text-zinc-400 italic">
                   Click to add a description...
                 </span>
               )}

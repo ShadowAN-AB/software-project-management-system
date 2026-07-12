@@ -9,7 +9,6 @@ export async function globalSearch(query: string) {
 
   const isAdmin = session.user.role === "ADMIN";
   const userId = session.user.id;
-  const search = `%${query.toLowerCase()}%`;
 
   // Search projects
   const projects = await prisma.project.findMany({

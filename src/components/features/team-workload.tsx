@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/ui/badge";
 import { DueDateBadge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Users,
   AlertTriangle,
@@ -57,45 +58,34 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
     <div className="space-y-6">
       {/* Summary Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-blue-500" />
-            <div>
-              <p className="text-xs text-zinc-500">Team Size</p>
-              <p className="text-lg font-bold text-zinc-900">{members.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <TrendingUp className="h-5 w-5 text-amber-500" />
-            <div>
-              <p className="text-xs text-zinc-500">Avg Load</p>
-              <p className="text-lg font-bold text-zinc-900">{avgLoad}</p>
-              <p className="text-[11px] text-zinc-400">tasks/person</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <CheckCircle className="h-5 w-5 text-emerald-500" />
-            <div>
-              <p className="text-xs text-zinc-500">Completed</p>
-              <p className="text-lg font-bold text-zinc-900">{totalCompleted}</p>
-              <p className="text-[11px] text-zinc-400">this week</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <div>
-              <p className="text-xs text-zinc-500">Overdue</p>
-              <p className="text-lg font-bold text-zinc-900">{totalOverdue}</p>
-              <p className="text-[11px] text-zinc-400">across team</p>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { label: "Team size", value: members.length, icon: Users },
+          { label: "Avg load", value: avgLoad, icon: TrendingUp, hint: "tasks/person" },
+          { label: "Completed", value: totalCompleted, icon: CheckCircle, hint: "this week" },
+          { label: "Overdue", value: totalOverdue, icon: AlertTriangle, hint: "across team" },
+        ].map((card) => (
+          <Card key={card.label}>
+            <CardContent className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                  {card.label}
+                </p>
+                <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight mt-2">
+                  {card.value}
+                </p>
+                {card.hint && (
+                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
+                    {card.hint}
+                  </p>
+                )}
+              </div>
+              <card.icon
+                className="h-4 w-4 text-zinc-400 dark:text-zinc-500"
+                strokeWidth={1.75}
+              />
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Workload Heatmap */}
@@ -124,14 +114,7 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                     className="w-full text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-medium text-white">
-                          {member.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </span>
-                      </div>
+                      <Avatar name={member.name} size="md" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
@@ -140,16 +123,16 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                             ) : (
                               <ChevronRight className="h-3 w-3 text-zinc-400" />
                             )}
-                            <span className="text-sm font-medium text-zinc-900 truncate">
+                            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
                               {member.name}
                             </span>
-                            <span className="text-xs text-zinc-400">
+                            <span className="text-xs text-zinc-400 dark:text-zinc-500">
                               {member.role.replace("_", " ")}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
                             {member.overdueTasks > 0 && (
-                              <span className="text-xs text-red-500 font-medium">
+                              <span className="text-xs text-red-500 dark:text-red-400 font-medium">
                                 {member.overdueTasks} overdue
                               </span>
                             )}
@@ -158,12 +141,12 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                             >
                               {level.label}
                             </span>
-                            <span className="text-xs text-zinc-500 font-mono w-8 text-right">
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono w-8 text-right">
                               {member.activeTaskCount}
                             </span>
                           </div>
                         </div>
-                        <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                        <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-300 ${
                               member.activeTaskCount > CAPACITY_THRESHOLD
@@ -186,13 +169,13 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                         <Link
                           key={task.id}
                           href={`/tasks/${task.id}`}
-                          className="flex items-center justify-between px-3 py-1.5 rounded-md hover:bg-zinc-50 transition-colors"
+                          className="flex items-center justify-between px-3 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
                         >
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xs font-mono text-zinc-400">
+                            <span className="text-xs font-mono text-zinc-400 dark:text-zinc-500">
                               {task.project.key}
                             </span>
-                            <span className="text-xs text-zinc-700 truncate">
+                            <span className="text-xs text-zinc-700 dark:text-zinc-300 truncate">
                               {task.title}
                             </span>
                           </div>
@@ -225,26 +208,26 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100">
-                  <th className="text-left py-2 px-3 text-xs font-medium text-zinc-500">
+                <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                  <th className="text-left py-2 px-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Member
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-red-500">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-900 dark:text-zinc-100">
                     Critical
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-orange-500">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     High
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-amber-500">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Medium
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-400">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-400 dark:text-zinc-500">
                     Low
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-500">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Total
                   </th>
-                  <th className="text-center py-2 px-3 text-xs font-medium text-emerald-500">
+                  <th className="text-center py-2 px-3 text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     Done/wk
                   </th>
                 </tr>
@@ -253,9 +236,9 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                 {members.map((member) => (
                   <tr
                     key={member.id}
-                    className="border-b border-zinc-50 hover:bg-zinc-50"
+                    className="border-b border-zinc-50 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                   >
-                    <td className="py-2 px-3 text-zinc-700 font-medium">
+                    <td className="py-2 px-3 text-zinc-700 dark:text-zinc-300 font-medium">
                       {member.name}
                     </td>
                     <td className="text-center py-2 px-3">
@@ -270,10 +253,10 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
                     <td className="text-center py-2 px-3">
                       <PriorityCell count={member.tasksByPriority.LOW} />
                     </td>
-                    <td className="text-center py-2 px-3 font-semibold text-zinc-900">
+                    <td className="text-center py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
                       {member.activeTaskCount}
                     </td>
-                    <td className="text-center py-2 px-3 text-emerald-600 font-medium">
+                    <td className="text-center py-2 px-3 text-zinc-900 dark:text-zinc-100 font-medium">
                       {member.completedThisWeek}
                     </td>
                   </tr>
@@ -289,6 +272,6 @@ export function TeamWorkload({ members }: { members: TeamMember[] }) {
 
 function PriorityCell({ count }: { count: number }) {
   if (count === 0)
-    return <span className="text-zinc-300">–</span>;
-  return <span className="text-zinc-700">{count}</span>;
+    return <span className="text-zinc-300 dark:text-zinc-700">–</span>;
+  return <span className="text-zinc-700 dark:text-zinc-300">{count}</span>;
 }

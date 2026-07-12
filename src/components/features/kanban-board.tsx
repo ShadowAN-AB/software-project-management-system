@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition, useRef, useMemo } from "react";
-import { updateTaskStatus, bulkUpdateTasks, bulkDeleteTasks } from "@/services/task-actions";
+import { bulkUpdateTasks, bulkDeleteTasks, reorderTasks } from "@/services/task-actions";
 import { PriorityBadge, DueDateBadge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
-  User,
   MessageSquare,
   Bug,
   Sparkles,
@@ -29,6 +29,7 @@ type Task = {
   status: TaskStatus;
   priority: string;
   type: string;
+  order?: number;
   dueDate: Date | null;
   assignee: { id: string; name: string } | null;
   _count: { comments: number };
@@ -93,8 +94,14 @@ export function KanbanBoard({
   members?: { id: string; name: string }[];
 }) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [lastInitial, setLastInitial] = useState(initialTasks);
+  if (lastInitial !== initialTasks) {
+    setLastInitial(initialTasks);
+    setTasks(initialTasks);
+  }
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ status: TaskStatus; index: number } | null>(null);
   const [, startTransition] = useTransition();
   const draggedTaskRef = useRef<string | null>(null);
 
@@ -166,6 +173,18 @@ export function KanbanBoard({
           for (const id of event.taskIds) next.delete(id);
           return next;
         });
+      },
+      "task:reordered": (event: SSEFrame) => {
+        if (event.type !== "task:reordered") return;
+        if (draggedTaskRef.current) return;
+        const orderMap = new Map(event.orderedIds.map((id, i) => [id, i]));
+        setTasks((prev) =>
+          prev.map((t) =>
+            orderMap.has(t.id)
+              ? { ...t, status: event.status, order: orderMap.get(t.id)! }
+              : t
+          )
+        );
       },
     },
   });
@@ -327,35 +346,82 @@ export function KanbanBoard({
     setDragOverColumn(status);
   }
 
+  function handleCardDragOver(
+    e: React.DragEvent,
+    status: TaskStatus,
+    cardIndex: number
+  ) {
+    if (!draggedTaskRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const above = e.clientY < rect.top + rect.height / 2;
+    setDragOverColumn(status);
+    setDropTarget({ status, index: above ? cardIndex : cardIndex + 1 });
+  }
+
   function handleDragLeave() {
     setDragOverColumn(null);
   }
 
   function handleDrop(status: TaskStatus) {
+    const target = dropTarget;
     setDragOverColumn(null);
+    setDropTarget(null);
     if (!draggedTask) return;
 
     const task = tasks.find((t) => t.id === draggedTask);
-    if (!task || task.status === status) {
+    if (!task) {
       setDraggedTask(null);
       return;
     }
 
-    setTasks((prev) =>
-      prev.map((t) => (t.id === draggedTask ? { ...t, status } : t))
-    );
     const capturedDraggedTask = draggedTask;
+    const previousStatus = task.status;
     setDraggedTask(null);
     draggedTaskRef.current = null;
 
+    // Compute new column order for reorderTasks
+    const columnTasks = tasks
+      .filter((t) => t.status === status && t.id !== capturedDraggedTask)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const insertAt =
+      target && target.status === status
+        ? Math.min(target.index, columnTasks.length)
+        : columnTasks.length;
+    const newOrderIds = [
+      ...columnTasks.slice(0, insertAt).map((t) => t.id),
+      capturedDraggedTask,
+      ...columnTasks.slice(insertAt).map((t) => t.id),
+    ];
+
+    if (previousStatus === status) {
+      const currentOrder = tasks
+        .filter((t) => t.status === status)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((t) => t.id);
+      if (
+        currentOrder.length === newOrderIds.length &&
+        currentOrder.every((id, i) => id === newOrderIds[i])
+      ) {
+        return;
+      }
+    }
+
+    // Optimistic update: apply new order + status
+    const orderMap = new Map(newOrderIds.map((id, i) => [id, i]));
+    setTasks((prev) =>
+      prev.map((t) =>
+        orderMap.has(t.id)
+          ? { ...t, status, order: orderMap.get(t.id)! }
+          : t
+      )
+    );
+
     startTransition(async () => {
-      const result = await updateTaskStatus(capturedDraggedTask, status);
+      const result = await reorderTasks(projectId, status, newOrderIds);
       if (!result.success) {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === capturedDraggedTask ? { ...t, status: task.status } : t
-          )
-        );
+        setTasks(initialTasks);
       }
     });
   }
@@ -364,6 +430,7 @@ export function KanbanBoard({
     setDraggedTask(null);
     draggedTaskRef.current = null;
     setDragOverColumn(null);
+    setDropTarget(null);
   }
 
   const selectionMode = selectedTasks.size > 0;
@@ -634,13 +701,19 @@ export function KanbanBoard({
       {/* Board columns */}
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((col) => {
-          const columnTasks = filteredTasks.filter((t) => {
-            if (filters.assignee === "__unassigned__") {
-              return t.status === col.status && !t.assignee;
-            }
-            return t.status === col.status;
-          });
+          const columnTasks = filteredTasks
+            .filter((t) => {
+              if (filters.assignee === "__unassigned__") {
+                return t.status === col.status && !t.assignee;
+              }
+              return t.status === col.status;
+            })
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           const isOver = dragOverColumn === col.status && draggedTask !== null;
+          const activeDropIndex =
+            dropTarget && dropTarget.status === col.status && draggedTask !== null
+              ? dropTarget.index
+              : -1;
 
           return (
             <div
@@ -669,14 +742,20 @@ export function KanbanBoard({
 
               {/* Cards */}
               <div className="px-2 pb-2 space-y-2 min-h-[80px]">
-                {columnTasks.map((task) => {
+                {columnTasks.map((task, cardIndex) => {
                   const TypeIcon = TYPE_ICONS[task.type] || CheckSquare;
                   const isSelected = selectedTasks.has(task.id);
+                  const showIndicatorAbove =
+                    activeDropIndex === cardIndex && draggedTask !== task.id;
                   return (
+                    <div key={task.id}>
+                      {showIndicatorAbove && (
+                        <div className="h-0.5 -my-1 bg-zinc-900 dark:bg-zinc-100 rounded-full" />
+                      )}
                     <div
-                      key={task.id}
                       draggable={!selectionMode}
                       onDragStart={() => handleDragStart(task.id)}
+                      onDragOver={(e) => handleCardDragOver(e, col.status, cardIndex)}
                       onDragEnd={handleDragEnd}
                       className={`bg-white dark:bg-zinc-900 p-3 rounded-xl border shadow-[0_1px_2px_rgb(0_0_0_/_0.04)] transition-all duration-150 ${
                         isSelected
@@ -753,23 +832,17 @@ export function KanbanBoard({
                             </span>
                           )}
                           {task.assignee && (
-                            <div
-                              className="h-5 w-5 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center"
-                              title={task.assignee.name}
-                            >
-                              <span className="text-[9px] font-medium text-white">
-                                {task.assignee.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </span>
-                            </div>
+                            <Avatar name={task.assignee.name} size="xs" title={task.assignee.name} />
                           )}
                         </div>
                       </div>
                     </div>
+                    </div>
                   );
                 })}
+                {activeDropIndex === columnTasks.length && draggedTask !== null && (
+                  <div className="h-0.5 -mt-1 bg-zinc-900 dark:bg-zinc-100 rounded-full" />
+                )}
               </div>
             </div>
           );

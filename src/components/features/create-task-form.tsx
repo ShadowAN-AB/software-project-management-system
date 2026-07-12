@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { createTask } from "@/services/task-actions";
 import { generateTaskDescription } from "@/services/ai-actions";
 import { Button } from "@/components/ui/button";
@@ -33,13 +33,15 @@ export function CreateTaskForm({
     null
   );
 
-  useEffect(() => {
+  const [lastState, setLastState] = useState(state);
+  if (state !== lastState) {
+    setLastState(state);
     if (state?.success) {
       setTitle("");
       setDescription("");
       setAiError(null);
     }
-  }, [state]);
+  }
 
   async function handleGenerate() {
     setAiError(null);

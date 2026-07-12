@@ -230,7 +230,7 @@ model Attachment {
   filename  String
   fileSize  Int
   mimeType  String
-  data      Bytes
+  storagePath String
   createdAt DateTime @default(now())
 
   taskId    String

@@ -1,9 +1,10 @@
 import { getProfile } from "@/services/settings-actions";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Settings, User, Lock, Bell } from "lucide-react";
+import { User, Lock } from "lucide-react";
 import { ProfileForm } from "@/components/features/profile-form";
 import { PasswordForm } from "@/components/features/password-form";
+import { Avatar } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 
 export default async function SettingsPage() {
@@ -33,16 +34,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-6 pb-6 border-b border-zinc-100">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-              <span className="text-xl font-bold text-white">
-                {profile.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)}
-              </span>
-            </div>
+            <Avatar name={profile.name} size="xl" />
             <div>
               <p className="text-lg font-semibold text-zinc-900">
                 {profile.name}

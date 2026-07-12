@@ -2,9 +2,18 @@
 
 import { requireAuth, requireProjectMember, getTaskProjectId, getSprintProjectId } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
-import { generateText, generateJSON, isAIEnabled, aiErrorMessage } from "@/lib/ai";
+import { generateText, generateJSON, isAIEnabled, aiErrorMessage, checkAIRateLimit } from "@/lib/ai";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/types";
+
+function rateLimit(userId: string): ActionResult<never> | null {
+  const check = checkAIRateLimit(userId);
+  if (check.ok) return null;
+  return {
+    success: false,
+    error: `AI rate limit reached — try again in ${check.retryAfterSec}s.`,
+  };
+}
 
 export async function isAIAvailable(): Promise<boolean> {
   return isAIEnabled();
@@ -27,6 +36,8 @@ export async function generateTaskDescription(
   if (!isAIEnabled()) {
     return { success: false, error: "AI is not configured" };
   }
+  const limited = rateLimit(session.user.id);
+  if (limited) return limited;
 
   const system = `You are a technical project manager writing task descriptions for a software team. Given a task title, produce a concise, structured description in Markdown.
 
@@ -60,6 +71,8 @@ export async function decomposeTask(
   if (!isAIEnabled()) {
     return { success: false, error: "AI is not configured" };
   }
+  const limited = rateLimit(session.user.id);
+  if (limited) return limited;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -130,6 +143,8 @@ export async function generateSprintRetro(
   if (!isAIEnabled()) {
     return { success: false, error: "AI is not configured" };
   }
+  const limited = rateLimit(session.user.id);
+  if (limited) return limited;
 
   const sprint = await prisma.sprint.findUnique({
     where: { id: sprintId },
@@ -261,6 +276,8 @@ export async function searchMyTasks(
   if (!isAIEnabled()) {
     return { success: false, error: "AI is not configured" };
   }
+  const limited = rateLimit(session.user.id);
+  if (limited) return limited;
 
   const system = `You translate natural-language task search queries into a strict JSON filter object for a project-management app.
 
@@ -328,7 +345,7 @@ Rules:
     type?: { in: string[] };
     title?: { contains: string; mode: "insensitive" };
     dueDate?: { lt?: Date; gte?: Date; lte?: Date };
-    AND?: unknown[];
+    OR?: unknown[];
   } = { assigneeId: session.user.id };
 
   if (safe.status) where.status = { in: safe.status };
@@ -339,13 +356,23 @@ Rules:
   }
 
   const now = new Date();
-  if (safe.overdue) {
+  const dueWithinEnd =
+    safe.dueWithinDays !== undefined
+      ? new Date(now.getTime() + safe.dueWithinDays * 86_400_000)
+      : null;
+
+  if (safe.overdue && dueWithinEnd) {
+    // "overdue or due soon" — the two ranges don't overlap, so use OR
+    where.OR = [
+      { dueDate: { lt: now } },
+      { dueDate: { gte: now, lte: dueWithinEnd } },
+    ];
+    if (!safe.status) where.status = { not: "DONE" };
+  } else if (safe.overdue) {
     where.dueDate = { lt: now };
     if (!safe.status) where.status = { not: "DONE" };
-  }
-  if (safe.dueWithinDays !== undefined) {
-    const end = new Date(now.getTime() + safe.dueWithinDays * 86_400_000);
-    where.dueDate = { ...(where.dueDate ?? {}), gte: now, lte: end };
+  } else if (dueWithinEnd) {
+    where.dueDate = { gte: now, lte: dueWithinEnd };
   }
 
   const tasks = await prisma.task.findMany({

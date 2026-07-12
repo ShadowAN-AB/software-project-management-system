@@ -8,6 +8,8 @@ import { MessageSquare, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useEventStream } from "@/hooks/use-event-stream";
 import type { SSEFrame } from "@/lib/sse-events";
+import { Avatar } from "@/components/ui/avatar";
+import { Markdown } from "@/components/ui/markdown";
 
 type Comment = {
   id: string;
@@ -16,31 +18,6 @@ type Comment = {
   user: { id: string; name: string; email: string };
 };
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-const AVATAR_COLORS = [
-  "from-blue-500 to-indigo-600",
-  "from-emerald-500 to-teal-600",
-  "from-violet-500 to-purple-600",
-  "from-amber-500 to-orange-600",
-  "from-rose-500 to-pink-600",
-  "from-cyan-500 to-sky-600",
-];
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 export function CommentThread({
   taskId,
@@ -55,6 +32,11 @@ export function CommentThread({
 }) {
   const [state, formAction, isPending] = useActionState(addComment, null);
   const [localComments, setLocalComments] = useState(initialComments);
+  const [lastInitial, setLastInitial] = useState(initialComments);
+  if (lastInitial !== initialComments) {
+    setLastInitial(initialComments);
+    setLocalComments(initialComments);
+  }
 
   useEventStream({
     channels: [`task:${taskId}`],
@@ -91,15 +73,7 @@ export function CommentThread({
         {/* Add Comment Form */}
         <form action={formAction} className="flex gap-3">
           <input type="hidden" name="taskId" value={taskId} />
-          <div
-            className={`h-8 w-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-              currentUserName
-            )} flex items-center justify-center flex-shrink-0 mt-0.5`}
-          >
-            <span className="text-[10px] font-bold text-white">
-              {getInitials(currentUserName || "U")}
-            </span>
-          </div>
+          <Avatar name={currentUserName} size="md" className="mt-0.5" />
           <div className="flex-1 flex gap-2">
             <input
               name="content"
@@ -130,29 +104,21 @@ export function CommentThread({
           <div className="space-y-4">
             {localComments.map((comment) => (
               <div key={comment.id} className="flex gap-3">
-                <div
-                  className={`h-8 w-8 rounded-full bg-gradient-to-br ${getAvatarColor(
-                    comment.user.name
-                  )} flex items-center justify-center flex-shrink-0 mt-0.5`}
-                >
-                  <span className="text-[10px] font-bold text-white">
-                    {getInitials(comment.user.name)}
-                  </span>
-                </div>
+                <Avatar name={comment.user.name} size="md" className="mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-900">
+                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       {comment.user.name}
                     </span>
-                    <span className="text-xs text-zinc-400">
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
                       {formatDistanceToNow(new Date(comment.createdAt), {
                         addSuffix: true,
                       })}
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-600 leading-relaxed mt-0.5">
-                    {comment.content}
-                  </p>
+                  <div className="text-sm mt-0.5">
+                    <Markdown>{comment.content}</Markdown>
+                  </div>
                 </div>
               </div>
             ))}
