@@ -8,11 +8,15 @@ const mockSession = {
 
 const mockRequireAuth = vi.fn();
 const mockRequireProjectMember = vi.fn();
+const mockResolveDefaultWorkspace = vi.fn(() =>
+  Promise.resolve({ workspaceId: "w1", workspaceSlug: "acme", role: "DEVELOPER" as const })
+);
 vi.mock("@/lib/authorization", () => ({
   requireAuth: mockRequireAuth,
   requireProjectMember: mockRequireProjectMember,
   getTaskProjectId: vi.fn(),
   getSprintProjectId: vi.fn(),
+  resolveDefaultWorkspace: mockResolveDefaultWorkspace,
 }));
 
 const mockPrisma = {

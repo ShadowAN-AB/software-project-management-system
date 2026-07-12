@@ -3,21 +3,34 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // --- Mocks -----------------------------------------------------------
 
 const mockSession = {
-  user: { id: "admin-1", name: "Admin", email: "admin@test.com", role: "ADMIN" as const },
+  user: { id: "admin-1", name: "Admin", email: "admin@test.com" },
+};
+const mockCtx = {
+  workspaceId: "w1",
+  workspaceSlug: "acme",
+  role: "ADMIN" as const,
 };
 
 const mockAuth = vi.fn();
+const mockInvalidateWorkspaceRoleCache = vi.fn();
+const mockInvalidateAllWorkspaceRolesForUser = vi.fn();
 vi.mock("@/lib/auth", () => ({
   auth: mockAuth,
-  invalidateRoleCache: vi.fn(),
+  invalidateWorkspaceRoleCache: mockInvalidateWorkspaceRoleCache,
+  invalidateAllWorkspaceRolesForUser: mockInvalidateAllWorkspaceRolesForUser,
+}));
+
+const mockResolveDefaultWorkspace = vi.fn();
+vi.mock("@/lib/authorization", () => ({
+  resolveDefaultWorkspace: mockResolveDefaultWorkspace,
 }));
 
 const mockPrisma = {
-  user: {
+  workspaceMember: {
     count: vi.fn(),
     findMany: vi.fn(),
     update: vi.fn(),
-    delete: vi.fn(),
+    deleteMany: vi.fn(),
     groupBy: vi.fn(),
   },
   project: { count: vi.fn() },
@@ -28,6 +41,7 @@ const mockPrisma = {
   projectMember: { deleteMany: vi.fn() },
   comment: { deleteMany: vi.fn() },
   activityLog: { deleteMany: vi.fn() },
+  user: { delete: vi.fn() },
   $transaction: vi.fn(),
 };
 
@@ -37,16 +51,19 @@ vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
 function asAdmin() {
   mockAuth.mockResolvedValue(mockSession);
+  mockResolveDefaultWorkspace.mockResolvedValue(mockCtx);
 }
 
 function asDeveloper() {
   mockAuth.mockResolvedValue({
-    user: { id: "dev-1", name: "Dev", email: "dev@test.com", role: "DEVELOPER" },
+    user: { id: "dev-1", name: "Dev", email: "dev@test.com" },
   });
+  mockResolveDefaultWorkspace.mockResolvedValue({ ...mockCtx, role: "DEVELOPER" as const });
 }
 
 function asUnauthenticated() {
   mockAuth.mockResolvedValue(null);
+  mockResolveDefaultWorkspace.mockResolvedValue(null);
 }
 
 // --- Tests ------------------------------------------------------------
@@ -60,20 +77,18 @@ describe("admin-actions", () => {
     return import("@/services/admin-actions");
   }
 
-  // ── requireAdmin (tested via getAdminStats) ────────────────────────
+  // ── requireAdmin gate ──────────────────────────────────────────────
 
   describe("requireAdmin gate", () => {
     it("throws when unauthenticated", async () => {
       const { getAdminStats } = await loadModule();
       asUnauthenticated();
-
       await expect(getAdminStats()).rejects.toThrow("Admin access required");
     });
 
-    it("throws when user is not ADMIN", async () => {
+    it("throws when the workspace role is not ADMIN", async () => {
       const { getAdminStats } = await loadModule();
       asDeveloper();
-
       await expect(getAdminStats()).rejects.toThrow("Admin access required");
     });
   });
@@ -81,16 +96,21 @@ describe("admin-actions", () => {
   // ── getAdminStats ──────────────────────────────────────────────────
 
   describe("getAdminStats", () => {
-    it("returns stats for admin user", async () => {
+    it("returns workspace-scoped stats for an admin", async () => {
       const { getAdminStats } = await loadModule();
       asAdmin();
-      mockPrisma.user.count.mockResolvedValue(5);
+
+      mockPrisma.workspaceMember.count.mockResolvedValue(5);
       mockPrisma.project.count.mockResolvedValue(3);
       mockPrisma.task.count.mockResolvedValue(20);
-      mockPrisma.user.findMany.mockResolvedValue([
-        { id: "u1", name: "Alice", email: "a@t.com", role: "ADMIN", createdAt: new Date() },
+      mockPrisma.workspaceMember.findMany.mockResolvedValue([
+        {
+          role: "ADMIN",
+          joinedAt: new Date(),
+          user: { id: "u1", name: "Alice", email: "a@t.com" },
+        },
       ]);
-      mockPrisma.user.groupBy.mockResolvedValue([
+      mockPrisma.workspaceMember.groupBy.mockResolvedValue([
         { role: "ADMIN", _count: 1 },
         { role: "DEVELOPER", _count: 4 },
       ]);
@@ -101,27 +121,50 @@ describe("admin-actions", () => {
       expect(stats.projectCount).toBe(3);
       expect(stats.taskCount).toBe(20);
       expect(stats.recentUsers).toHaveLength(1);
+      expect(stats.recentUsers[0]).toMatchObject({ id: "u1", name: "Alice", role: "ADMIN" });
       expect(stats.roleDistribution).toEqual({ ADMIN: 1, DEVELOPER: 4 });
+
+      // Every query must scope to ctx.workspaceId.
+      expect(mockPrisma.workspaceMember.count).toHaveBeenCalledWith({
+        where: { workspaceId: "w1" },
+      });
+      expect(mockPrisma.project.count).toHaveBeenCalledWith({
+        where: { workspaceId: "w1" },
+      });
     });
   });
 
   // ── getAdminUsers ──────────────────────────────────────────────────
 
   describe("getAdminUsers", () => {
-    it("returns user list for admin", async () => {
+    it("returns workspace members with role for admins", async () => {
       const { getAdminUsers } = await loadModule();
       asAdmin();
-      const users = [{ id: "u1", name: "Alice", _count: { assignedTasks: 2, createdTasks: 5, projectMemberships: 1 } }];
-      mockPrisma.user.findMany.mockResolvedValue(users);
+
+      const members = [
+        {
+          role: "PROJECT_MANAGER",
+          user: {
+            id: "u1",
+            name: "Alice",
+            email: "a@t.com",
+            _count: { assignedTasks: 2, createdTasks: 5, projectMemberships: 1 },
+          },
+        },
+      ];
+      mockPrisma.workspaceMember.findMany.mockResolvedValue(members);
 
       const result = await getAdminUsers();
-      expect(result).toEqual(users);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ id: "u1", name: "Alice", role: "PROJECT_MANAGER" });
+      expect(mockPrisma.workspaceMember.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { workspaceId: "w1" } })
+      );
     });
 
     it("rejects non-admin", async () => {
       const { getAdminUsers } = await loadModule();
       asDeveloper();
-
       await expect(getAdminUsers()).rejects.toThrow("Admin access required");
     });
   });
@@ -129,28 +172,29 @@ describe("admin-actions", () => {
   // ── updateUserRole ─────────────────────────────────────────────────
 
   describe("updateUserRole", () => {
-    it("updates role for another user", async () => {
+    it("updates the target member's workspace role and invalidates their cache", async () => {
       const { updateUserRole } = await loadModule();
       asAdmin();
-      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.workspaceMember.update.mockResolvedValue({});
 
       const result = await updateUserRole("other-user", "PROJECT_MANAGER");
 
       expect(result).toEqual({ success: true, data: undefined });
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: "other-user" },
+      expect(mockPrisma.workspaceMember.update).toHaveBeenCalledWith({
+        where: { workspaceId_userId: { workspaceId: "w1", userId: "other-user" } },
         data: { role: "PROJECT_MANAGER" },
       });
+      expect(mockInvalidateWorkspaceRoleCache).toHaveBeenCalledWith("other-user", "w1");
     });
 
-    it("prevents admin from changing own role", async () => {
+    it("prevents admin from changing their own role", async () => {
       const { updateUserRole } = await loadModule();
       asAdmin();
 
       const result = await updateUserRole("admin-1", "DEVELOPER");
 
       expect(result).toEqual({ success: false, error: "Cannot change your own role" });
-      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+      expect(mockPrisma.workspaceMember.update).not.toHaveBeenCalled();
     });
 
     it("rejects non-admin", async () => {
@@ -161,65 +205,16 @@ describe("admin-actions", () => {
     });
   });
 
-  // ── bootstrapAdmin ─────────────────────────────────────────────────
-
-  describe("bootstrapAdmin", () => {
-    it("returns error when not authenticated", async () => {
-      const { bootstrapAdmin } = await loadModule();
-      asUnauthenticated();
-
-      const result = await bootstrapAdmin();
-      expect(result).toEqual({ success: false, error: "Not authenticated" });
-    });
-
-    it("promotes user to ADMIN when no admins exist", async () => {
-      const { bootstrapAdmin } = await loadModule();
-      asDeveloper();
-      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<boolean>) => {
-        return fn({
-          user: {
-            count: vi.fn().mockResolvedValue(0),
-            update: vi.fn().mockResolvedValue({}),
-          },
-        });
-      });
-
-      const result = await bootstrapAdmin();
-
-      expect(result).toEqual({ success: true, data: undefined });
-    });
-
-    it("rejects when admin already exists", async () => {
-      const { bootstrapAdmin } = await loadModule();
-      asDeveloper();
-      mockPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<boolean>) => {
-        return fn({
-          user: {
-            count: vi.fn().mockResolvedValue(1),
-            update: vi.fn(),
-          },
-        });
-      });
-
-      const result = await bootstrapAdmin();
-
-      expect(result).toEqual({
-        success: false,
-        error: "An admin already exists. Contact them for role changes.",
-      });
-    });
-  });
-
   // ── getAdminCount ──────────────────────────────────────────────────
 
   describe("getAdminCount", () => {
-    it("returns admin count", async () => {
+    it("counts admins across all workspaces", async () => {
       const { getAdminCount } = await loadModule();
-      mockPrisma.user.count.mockResolvedValue(2);
+      mockPrisma.workspaceMember.count.mockResolvedValue(4);
 
       const result = await getAdminCount();
-      expect(result).toBe(2);
-      expect(mockPrisma.user.count).toHaveBeenCalledWith({ where: { role: "ADMIN" } });
+      expect(result).toBe(4);
+      expect(mockPrisma.workspaceMember.count).toHaveBeenCalledWith({ where: { role: "ADMIN" } });
     });
   });
 
@@ -236,7 +231,7 @@ describe("admin-actions", () => {
       expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it("deletes another user in a transaction", async () => {
+    it("deletes another user through a transaction and clears all their role caches", async () => {
       const { deleteUser } = await loadModule();
       asAdmin();
       mockPrisma.$transaction.mockResolvedValue(undefined);
@@ -246,7 +241,9 @@ describe("admin-actions", () => {
       expect(result).toEqual({ success: true, data: undefined });
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
       const txArg = mockPrisma.$transaction.mock.calls[0][0];
-      expect(txArg).toHaveLength(6);
+      // 7-op transaction now (task assignee null / task creator null / projectMember / workspaceMember / comment / activity / user)
+      expect(txArg).toHaveLength(7);
+      expect(mockInvalidateAllWorkspaceRolesForUser).toHaveBeenCalledWith("other-user");
     });
 
     it("rejects non-admin", async () => {

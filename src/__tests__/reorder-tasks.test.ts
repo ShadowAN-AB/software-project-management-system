@@ -19,9 +19,13 @@ const mockPrisma = {
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
 const mockRequireProjectMember = vi.fn();
+const mockResolveDefaultWorkspace = vi.fn(() =>
+  Promise.resolve({ workspaceId: "w1", workspaceSlug: "acme", role: "DEVELOPER" as const })
+);
 vi.mock("@/lib/authorization", () => ({
   requireProjectMember: mockRequireProjectMember,
   getTaskProjectId: vi.fn(),
+  resolveDefaultWorkspace: mockResolveDefaultWorkspace,
 }));
 
 const mockEmit = vi.fn();

@@ -27,20 +27,24 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 **Layering:** Pages → Feature Components → Server Actions → Prisma → PostgreSQL
 
 - `src/app/(auth)/` — Login/register pages (no sidebar). Both wrap `useSearchParams()` in `<Suspense>` boundaries (required by Next.js 16 static prerendering).
-- `src/app/(dashboard)/` — All authenticated pages. Layout is a server component that fetches session/notifications, then renders `DashboardShell` (client component managing responsive sidebar state).
-- `src/app/api/` — REST routes only (6 dirs): `auth/` (NextAuth), `attachments/` (file download), `invite/` (token validation), `events/` (SSE stream), `cron/` (due-date reminders), `export/` (CSV).
+- `src/app/(dashboard)/layout.tsx` — bare auth gate. Sub-routes render their own chrome.
+- `src/app/(dashboard)/w/[workspaceSlug]/layout.tsx` — resolves `WorkspaceContext` via `requireWorkspaceMember(slug, userId)` (React.cache'd), fetches notifications + workspaces, renders `DashboardShell`. All authenticated app pages live under this.
+- `src/app/(dashboard)/onboarding/create-workspace/` — form for creating additional workspaces (also the fallback when a user has zero memberships).
+- `src/app/(dashboard)/invitations/` — stub for M4 cross-workspace invite acceptance.
+- `src/app/api/` — REST routes only: `auth/` (NextAuth), `attachments/` (download), `invite/validate/`, `events/` (SSE), `cron/due-reminders/`, `export/` (CSV) + `export/reports/` (PDF).
+- `src/proxy.ts` — Next 16 middleware equivalent. Matches `/w/:path*`, syncs `lastWorkspaceSlug` cookie with URL so client-invoked server actions resolve to the current workspace.
 - `src/components/ui/` — Reusable primitives (Button, Card, Input, Badge, Avatar, Markdown) — all custom, no component library.
 - `src/components/features/` — Domain-specific client components (KanbanBoard, GanttChart, TaskDetail, Sidebar, DashboardShell, etc.).
 - `src/services/` — Server actions ("use server") for all mutations and data fetching. 20 action modules.
 - `src/lib/auth.ts` — NextAuth config with Credentials provider and JWT callbacks.
-- `src/lib/authorization.ts` — `requireAuth()`, `requireProjectMember()`, `getTaskProjectId()`, `getSprintProjectId()`.
+- `src/lib/authorization.ts` — `requireAuth()`, `requireWorkspaceMember(slug, userId)` (React.cache'd), `requireProjectMember(projectId, userId, ctx)`, `resolveDefaultWorkspace(userId)` (URL/cookie-aware shim), `getTaskProjectId()`, `getSprintProjectId()`.
 - `src/lib/email.ts` — Resend integration for email notifications. Gracefully no-ops without `RESEND_API_KEY`.
 - `src/lib/ai.ts` — GitHub Models client (OpenAI-compatible, `gpt-4o-mini`). Exports `generateText`, `generateJSON<T>`, `isAIEnabled`, `aiErrorMessage`, `checkAIRateLimit`. Gracefully no-ops without `GITHUB_MODELS_TOKEN` (same pattern as email). Returns typed `AIResult<T> = { ok: true; value: T } | { ok: false; error: AIError }`. `AIError` variants: `not_configured`, `no_credit`, `rate_limited`, `auth`, `no_access`, `bad_json`, `unknown` — always render via `aiErrorMessage(error)`, never expose the variant directly. Uses `fetch` directly against `https://models.github.ai/inference/chat/completions` — no SDK dependency.
 - `src/lib/supabase.ts` — Server-only Supabase admin client (globalThis singleton like `prisma.ts`). Exports `ATTACHMENTS_BUCKET` constant and `removeAttachmentObjects(paths)` helper. Uses the service-role key — never import from client code.
 - `src/lib/project-templates.ts` — Built-in project templates (Scrum, Bug Tracking, Product Launch, Website Redesign) with predefined tasks and labels.
 - `src/lib/validations.ts` — Zod schemas for all form inputs.
 - `src/lib/format.ts` — Small display helpers. `getInitials(name)` is the canonical implementation — do not re-derive inline.
-- `src/types/index.ts` — NextAuth module augmentation + `ActionResult<T>` type.
+- `src/types/index.ts` — NextAuth module augmentation (Session carries only `id` — role removed) + `ActionResult<T>` + `WorkspaceContext = { workspaceId, workspaceSlug, role }`.
 
 **Path alias:** `@/*` maps to `./src/*`
 
@@ -50,17 +54,42 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 **ActionResult<T>** — Every mutation returns `{ success: true, data: T } | { success: false, error: string }`.
 
-**Authorization.** Every server action calls `requireAuth()` and then `requireProjectMember(projectId, userId, role)` from `src/lib/authorization.ts`. ADMIN role bypasses project membership checks. Never add a new server action without these guards.
+**Authorization.** JWT/Session carry only `id`. Role is resolved per-request:
+- Server components under `/w/[slug]/`: call `requireWorkspaceMember(slug, userId)` — React.cache'd, so pages and actions in the same request share the result.
+- Server actions invoked from client forms: call `resolveDefaultWorkspace(userId)` (the M1/M2 shim). It reads the `lastWorkspaceSlug` cookie first (kept in sync with URL by `proxy.ts`), falls back to first membership by `joinedAt`.
+- `requireProjectMember(projectId, userId, ctx)` verifies `project.workspaceId === ctx.workspaceId` first (calls `notFound()` on mismatch — closes cross-workspace ID probing), then ADMIN bypass at the workspace level only, then `ProjectMember` lookup.
+- Never add a new server action without deriving `ctx` and passing it through.
 
 **NEXT_REDIRECT is an error.** `redirect()` throws a `NEXT_REDIRECT` error. Server actions that call `redirect()` must re-throw it — never swallow it in a try/catch. This has caused bugs before.
 
-**JWT role refresh with 30s cache.** The JWT callback in `src/lib/auth.ts` looks up the user's role via `getCachedRole()` — an in-process `globalThis` map with a 30s TTL. This still picks up role changes without hitting the DB on every request. Any code path that mutates `user.role` (currently `updateUserRole` and `bootstrapAdmin` in `admin-actions.ts`) MUST call `invalidateRoleCache(userId)` right after the write so the change is visible immediately.
+**Workspace role cache with 30s TTL.** `getCachedWorkspaceRole(userId, workspaceId)` in `src/lib/auth.ts` — in-process `globalThis` map keyed `${userId}:${workspaceId}`. Any code path that mutates `WorkspaceMember.role` or deletes a membership MUST call `invalidateWorkspaceRoleCache(userId, workspaceId)` right after. `invalidateAllWorkspaceRolesForUser(userId)` on user delete or workspace deletion.
 
 **Optimistic UI on Kanban.** `KanbanBoard` applies drag-and-drop status changes and bulk operations optimistically, then calls the server action. On failure it reverts.
 
-**Roles:** ADMIN, PROJECT_MANAGER, DEVELOPER, TESTER. Only ADMIN/PM can create projects and manage sprints. Only ADMIN can access the admin panel and invite system.
+**Roles:** ADMIN, PROJECT_MANAGER, DEVELOPER, TESTER — all **per-workspace** (via `WorkspaceMember`), not global. Only ADMIN can access `/w/[slug]/admin` and invite users to that workspace. ADMIN of one workspace does NOT grant privileges in any other.
 
-**Invite-only registration.** Public signup is disabled. First user auto-promotes to ADMIN. Subsequent users need an invite token (32-byte hex, 7-day expiry).
+**Public signup.** Anyone can register. New user gets their own workspace + ADMIN role atomically (transaction in `register()`). Invitations (still workspace-scoped, still 32-byte hex + 7-day expiry) are for adding people to an existing workspace — M4 will rewrite the accept flow.
+
+## Multi-tenant workspaces
+
+Every registered user creates their own isolated workspace and becomes its ADMIN. Users can belong to multiple workspaces; roles are per-workspace (via `WorkspaceMember`), not global.
+
+- `Workspace` — `id, name, slug @unique, createdById → User`.
+- `WorkspaceMember` — `workspaceId + userId + role`, `@@unique([workspaceId, userId])`.
+- `Project`, `Invitation`, `Notification` — carry `workspaceId` FK. `Project.key` uniqueness is `@@unique([workspaceId, key])` — Prisma names the compound field `workspaceId_key`, so `findUnique({ where: { key } })` must become `findUnique({ where: { workspaceId_key: { workspaceId, key } } })`.
+- Everything else (Task, Sprint, Comment, Attachment, etc.) is workspace-scoped through `projectId → Project.workspaceId`.
+
+**URL structure:** All app pages live under `/w/[workspaceSlug]/…`. Links to `/tasks/xyz` are broken — always use `/w/${workspaceSlug}/tasks/xyz`. In server components, get the slug from `params: Promise<{ workspaceSlug: string }>`. In client components, `const workspaceSlug = useParams().workspaceSlug as string;`.
+
+**Signup flow:** `register()` in `auth-actions.ts` runs `prisma.$transaction([user + workspace + WorkspaceMember(ADMIN)])`. Workspace name auto-generated as `"{FirstName}'s Workspace"`, slug sanitized to kebab-case with `-2/-3` dedupe on unique conflict. No invite token, no first-user branch — `getSystemHasUsers`, `bootstrapAdmin`, and `/setup` are all deleted.
+
+**Redirect chain:** Root `/` resolves the user's default workspace and redirects to `/w/{slug}/dashboard`, or to `/onboarding/create-workspace` if the user has no memberships (only reachable after being removed from every workspace).
+
+## Next 16 proxy (was: middleware)
+
+`src/proxy.ts` matches `/w/:path*` and writes the `lastWorkspaceSlug` cookie when it differs from the URL slug. This is the seam that lets client-invoked server actions (which can't read URL params) resolve to the correct workspace via `resolveDefaultWorkspace` — the cookie is the source of truth for "current workspace" in that context.
+
+**Do NOT create `middleware.ts`** — Next 16 renamed the convention and errors when both files exist. Also, server components/layouts can't `cookies().set()` in Next 16; only Server Actions, Route Handlers, and `proxy.ts` can. If you need to mutate cookies from a layout, move it to `proxy.ts` or a Server Action.
 
 ## Testing
 
@@ -68,9 +97,10 @@ Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`
 
 - Tests live in `src/__tests__/*.test.ts`
 - Setup file (`src/__tests__/setup.ts`) mocks `next/cache` and `next/navigation` (redirect throws `NEXT_REDIRECT` like real Next.js)
-- Each test file mocks `@/lib/prisma` and `@/lib/auth` with `vi.mock()`
+- Each test file mocks `@/lib/prisma`, `@/lib/auth`, and `@/lib/authorization` with `vi.mock()`
 - Run a single test file: `npx vitest run src/__tests__/auth-actions.test.ts`
-- Current suites: `auth-actions.test.ts`, `admin-actions.test.ts`, `reorder-tasks.test.ts`, `export-reports-route.test.ts`, `lib-ai.test.ts`, `ai-actions-search.test.ts`. When adding tests for a server action, mirror the shape of `reorder-tasks.test.ts` — mock `@/lib/auth`, `@/lib/prisma`, `@/lib/authorization`, `@/lib/event-bus`; assert `ActionResult` + emitted SSE frame.
+- Current suites: `auth-actions.test.ts`, `admin-actions.test.ts`, `reorder-tasks.test.ts`, `export-reports-route.test.ts`, `lib-ai.test.ts`, `ai-actions-search.test.ts` — 68 tests, all green.
+- When adding a test for a workspace-scoped action, mock `@/lib/authorization` with both `requireProjectMember` (returns true/false) and `resolveDefaultWorkspace` (returns `{ workspaceId, workspaceSlug, role }`). The session mock no longer has `role` — it's `{ user: { id, name, email } }`. Mirror the shape of `reorder-tasks.test.ts` for coverage of `ActionResult` + emitted SSE frame; mirror `admin-actions.test.ts` for anything workspace-scoped that touches `workspaceMember`.
 
 ## Database
 
@@ -79,6 +109,8 @@ Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`
 **Required query-string params on `DATABASE_URL`:** `?pgbouncer=true&connection_limit=10&pool_timeout=20`. Without `pgbouncer=true`, Prisma caches prepared statements that the pooler doesn't preserve across connections → P1017 "Server has closed the connection". `connection_limit=10` caps parallel connections since the pooler already multiplexes; `pool_timeout=20` gives `Promise.all` fan-outs (e.g. dashboard, activity page) enough time to acquire a slot.
 
 Use `prisma db push` instead of `prisma migrate dev`.
+
+**`prisma db push --force-reset` is gated by Prisma's Claude-Code guard** — refuses to run without `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` env var set to the user's exact consent message. Get a fresh explicit yes, pass their text as the env value, then run.
 
 After a DB reset: clear browser cookies for localhost:3000 (stale JWT tokens reference deleted user IDs).
 

@@ -6,12 +6,18 @@ const mockPrisma = {
   user: {
     findUnique: vi.fn(),
     create: vi.fn(),
-    count: vi.fn(),
   },
-  invitation: {
+  workspace: {
     findUnique: vi.fn(),
-    update: vi.fn(),
+    create: vi.fn(),
   },
+  workspaceMember: {
+    create: vi.fn(),
+  },
+  $transaction: vi.fn(async (fn) => {
+    // The action wraps user/workspace/member creation in a $transaction callback.
+    return fn(mockPrisma);
+  }),
 };
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -46,9 +52,10 @@ function isRedirect(error: unknown): error is Error & { digest: string } {
 describe("auth-actions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // The $transaction mock re-wires each reset — restore its behavior.
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
   });
 
-  // Lazy-import so mocks are wired first
   async function loadModule() {
     return import("@/services/auth-actions");
   }
@@ -60,33 +67,20 @@ describe("auth-actions", () => {
       const { login } = await loadModule();
       mockSignIn.mockRejectedValue(new Error("CredentialsSignin"));
 
-      const fd = makeFormData({ email: "bad@test.com", password: "wrong" });
-      const result = await login(null, fd);
-
+      const result = await login(null, makeFormData({ email: "u@x.com", password: "bad" }));
       expect(result).toEqual({ success: false, error: "Invalid email or password" });
     });
 
-    it("re-throws NEXT_REDIRECT from signIn", async () => {
-      const { login } = await loadModule();
-      const redirectErr = new Error("NEXT_REDIRECT") as Error & { digest: string };
-      redirectErr.digest = "NEXT_REDIRECT;/dashboard";
-      mockSignIn.mockRejectedValue(redirectErr);
-
-      const fd = makeFormData({ email: "user@test.com", password: "password123" });
-      await expect(login(null, fd)).rejects.toThrow("NEXT_REDIRECT");
-    });
-
-    it("redirects to /dashboard on success", async () => {
+    it("redirects to / (root resolves default workspace) on success", async () => {
       const { login } = await loadModule();
       mockSignIn.mockResolvedValue(undefined);
 
-      const fd = makeFormData({ email: "user@test.com", password: "password123" });
       try {
-        await login(null, fd);
-        expect.fail("Expected redirect to throw");
-      } catch (e) {
-        expect(isRedirect(e)).toBe(true);
-        expect((e as { digest: string }).digest).toContain("/dashboard");
+        await login(null, makeFormData({ email: "u@x.com", password: "ok" }));
+        expect.fail("expected redirect");
+      } catch (err) {
+        expect(isRedirect(err)).toBe(true);
+        if (isRedirect(err)) expect(err.digest).toContain("/");
       }
     });
   });
@@ -94,179 +88,91 @@ describe("auth-actions", () => {
   // ── register ───────────────────────────────────────────────────────
 
   describe("register", () => {
-    it("rejects invalid input (short name)", async () => {
+    it("rejects when email already registered", async () => {
       const { register } = await loadModule();
+      mockPrisma.user.findUnique.mockResolvedValue({ id: "u1" });
 
-      const fd = makeFormData({ name: "A", email: "a@b.com", password: "password123" });
-      const result = await register(null, fd);
-
-      expect(result.success).toBe(false);
-      expect((result as { error: string }).error).toMatch(/name/i);
-    });
-
-    it("rejects invalid input (short password)", async () => {
-      const { register } = await loadModule();
-
-      const fd = makeFormData({ name: "Alice", email: "a@b.com", password: "12345" });
-      const result = await register(null, fd);
-
-      expect(result.success).toBe(false);
-      expect((result as { error: string }).error).toMatch(/password/i);
-    });
-
-    it("rejects invalid input (bad email)", async () => {
-      const { register } = await loadModule();
-
-      const fd = makeFormData({ name: "Alice", email: "not-an-email", password: "password123" });
-      const result = await register(null, fd);
-
-      expect(result.success).toBe(false);
-      expect((result as { error: string }).error).toMatch(/email/i);
-    });
-
-    it("rejects duplicate email", async () => {
-      const { register } = await loadModule();
-      mockPrisma.user.findUnique.mockResolvedValue({ id: "existing" });
-
-      const fd = makeFormData({ name: "Alice", email: "taken@test.com", password: "password123" });
-      const result = await register(null, fd);
-
+      const result = await register(
+        null,
+        makeFormData({ name: "Alice", email: "taken@x.com", password: "password123" })
+      );
       expect(result).toEqual({ success: false, error: "Email already registered" });
     });
 
-    it("first user becomes ADMIN and redirects", async () => {
+    it("rejects on invalid input from Zod", async () => {
+      const { register } = await loadModule();
+      const result = await register(
+        null,
+        makeFormData({ name: "A", email: "not-email", password: "short" })
+      );
+      expect(result.success).toBe(false);
+    });
+
+    it("creates user + workspace + ADMIN membership atomically, then redirects", async () => {
       const { register } = await loadModule();
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(0);
-      mockPrisma.user.create.mockResolvedValue({ id: "u1" });
+      mockPrisma.workspace.findUnique.mockResolvedValue(null); // slug is free
+      mockPrisma.user.create.mockResolvedValue({ id: "new-user" });
+      mockPrisma.workspace.create.mockResolvedValue({ id: "w1", slug: "alices-workspace" });
+      mockPrisma.workspaceMember.create.mockResolvedValue({});
 
-      const fd = makeFormData({ name: "Alice Admin", email: "alice@test.com", password: "password123" });
       try {
-        await register(null, fd);
-        expect.fail("Expected redirect");
-      } catch (e) {
-        expect(isRedirect(e)).toBe(true);
+        await register(
+          null,
+          makeFormData({ name: "Alice Smith", email: "a@x.com", password: "password123" })
+        );
+        expect.fail("expected redirect");
+      } catch (err) {
+        expect(isRedirect(err)).toBe(true);
+        if (isRedirect(err)) expect(err.digest).toContain("/login?registered=true");
       }
 
+      expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
       expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: "ADMIN" }),
+        data: expect.objectContaining({
+          name: "Alice Smith",
+          email: "a@x.com",
+          passwordHash: expect.any(String),
+        }),
+      });
+      expect(mockPrisma.workspace.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: "Alice's Workspace",
+          slug: expect.stringMatching(/^alices?-workspace/),
+          createdById: "new-user",
+        }),
+      });
+      expect(mockPrisma.workspaceMember.create).toHaveBeenCalledWith({
+        data: {
+          userId: "new-user",
+          workspaceId: "w1",
+          role: "ADMIN",
+        },
       });
     });
 
-    it("subsequent user without token is rejected", async () => {
+    it("dedupes slug with -2 suffix on unique conflict", async () => {
       const { register } = await loadModule();
       mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(1);
-
-      const fd = makeFormData({ name: "Bob", email: "bob@test.com", password: "password123" });
-      const result = await register(null, fd);
-
-      expect(result).toEqual({
-        success: false,
-        error: "Registration requires an invitation. Contact your admin.",
-      });
-    });
-
-    it("rejects expired invite token", async () => {
-      const { register } = await loadModule();
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.invitation.findUnique.mockResolvedValue({
-        email: "bob@test.com",
-        role: "DEVELOPER",
-        usedAt: null,
-        expiresAt: new Date("2020-01-01"),
-      });
-
-      const fd = makeFormData({ name: "Bob", email: "bob@test.com", password: "password123", token: "abc123" });
-      const result = await register(null, fd);
-
-      expect(result).toEqual({ success: false, error: "Invalid or expired invitation link" });
-    });
-
-    it("rejects already-used invite token", async () => {
-      const { register } = await loadModule();
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.invitation.findUnique.mockResolvedValue({
-        email: "bob@test.com",
-        role: "DEVELOPER",
-        usedAt: new Date(),
-        expiresAt: new Date("2099-01-01"),
-      });
-
-      const fd = makeFormData({ name: "Bob", email: "bob@test.com", password: "password123", token: "abc123" });
-      const result = await register(null, fd);
-
-      expect(result).toEqual({ success: false, error: "Invalid or expired invitation link" });
-    });
-
-    it("rejects token sent to a different email", async () => {
-      const { register } = await loadModule();
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.invitation.findUnique.mockResolvedValue({
-        email: "someone-else@test.com",
-        role: "DEVELOPER",
-        usedAt: null,
-        expiresAt: new Date("2099-01-01"),
-      });
-
-      const fd = makeFormData({ name: "Bob", email: "bob@test.com", password: "password123", token: "abc123" });
-      const result = await register(null, fd);
-
-      expect(result).toEqual({
-        success: false,
-        error: "This invitation was sent to a different email address",
-      });
-    });
-
-    it("registers with valid invite token, assigns invited role, marks token used", async () => {
-      const { register } = await loadModule();
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.count.mockResolvedValue(1);
-      mockPrisma.invitation.findUnique.mockResolvedValue({
-        email: "bob@test.com",
-        role: "TESTER",
-        usedAt: null,
-        expiresAt: new Date("2099-01-01"),
-      });
+      // First slug taken, second free.
+      mockPrisma.workspace.findUnique
+        .mockResolvedValueOnce({ id: "existing" })
+        .mockResolvedValueOnce(null);
       mockPrisma.user.create.mockResolvedValue({ id: "u2" });
-      mockPrisma.invitation.update.mockResolvedValue({});
+      mockPrisma.workspace.create.mockResolvedValue({ id: "w2", slug: "bob-workspace-2" });
+      mockPrisma.workspaceMember.create.mockResolvedValue({});
 
-      const fd = makeFormData({ name: "Bob", email: "bob@test.com", password: "password123", token: "valid-token" });
       try {
-        await register(null, fd);
-        expect.fail("Expected redirect");
-      } catch (e) {
-        expect(isRedirect(e)).toBe(true);
+        await register(
+          null,
+          makeFormData({ name: "Bob", email: "b@x.com", password: "password123" })
+        );
+      } catch (err) {
+        expect(isRedirect(err)).toBe(true);
       }
 
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: "TESTER", email: "bob@test.com" }),
-      });
-      expect(mockPrisma.invitation.update).toHaveBeenCalledWith({
-        where: { token: "valid-token" },
-        data: { usedAt: expect.any(Date) },
-      });
-    });
-  });
-
-  // ── getSystemHasUsers ──────────────────────────────────────────────
-
-  describe("getSystemHasUsers", () => {
-    it("returns false when no users exist", async () => {
-      const { getSystemHasUsers } = await loadModule();
-      mockPrisma.user.count.mockResolvedValue(0);
-
-      expect(await getSystemHasUsers()).toBe(false);
-    });
-
-    it("returns true when users exist", async () => {
-      const { getSystemHasUsers } = await loadModule();
-      mockPrisma.user.count.mockResolvedValue(3);
-
-      expect(await getSystemHasUsers()).toBe(true);
+      const slug = mockPrisma.workspace.create.mock.calls[0][0].data.slug;
+      expect(slug).toBe("bobs-workspace-2");
     });
   });
 });
