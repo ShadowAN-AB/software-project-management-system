@@ -22,6 +22,7 @@ export function DashboardShell({
   userName,
   userRole,
   userId,
+  workspaceId,
   workspaceSlug,
   workspaces,
   pendingInvitationsCount = 0,
@@ -32,6 +33,7 @@ export function DashboardShell({
   userName: string;
   userRole: string;
   userId: string;
+  workspaceId: string;
   workspaceSlug: string;
   workspaces: { id: string; slug: string; name: string; role: string }[];
   pendingInvitationsCount?: number;
@@ -101,6 +103,7 @@ export function DashboardShell({
             notifications={notifications}
             unreadCount={unreadCount}
             userId={userId}
+            workspaceId={workspaceId}
           />
         </header>
         <main className="flex-1 overflow-y-auto bg-zinc-50/50 dark:bg-zinc-900/50 p-4 md:p-8">

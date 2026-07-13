@@ -27,7 +27,7 @@ export default async function AdminPage({
 
   const statCards = [
     {
-      label: "Total users",
+      label: "Members",
       value: stats.userCount,
       icon: Users,
       accent: "text-blue-500",
@@ -39,7 +39,7 @@ export default async function AdminPage({
       accent: "text-emerald-500",
     },
     {
-      label: "Total tasks",
+      label: "Tasks",
       value: stats.taskCount,
       icon: ListTodo,
       accent: "text-violet-500",
@@ -56,10 +56,10 @@ export default async function AdminPage({
     <div className="max-w-6xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
-          Admin Panel
+          Workspace admin
         </h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Manage users, roles, and system settings
+          Manage members, roles, and invitations for this workspace.
         </p>
       </div>
 

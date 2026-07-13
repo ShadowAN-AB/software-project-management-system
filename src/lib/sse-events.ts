@@ -76,3 +76,12 @@ export type SSEEvent =
     };
 
 export type SSEFrame = SSEEvent & { _actorId: string };
+
+/**
+ * SSE channel key for per-user, per-workspace notifications. Kept in a
+ * plain module (not a "use server" file) so both server actions and client
+ * components (`use-event-stream`, `NotificationBell`) can import it.
+ */
+export function notificationChannel(userId: string, workspaceId: string) {
+  return `user:${userId}:workspace:${workspaceId}`;
+}

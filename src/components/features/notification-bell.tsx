@@ -6,7 +6,7 @@ import { markAsRead, markAllAsRead } from "@/services/notification-actions";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { useEventStream } from "@/hooks/use-event-stream";
-import type { SSEFrame } from "@/lib/sse-events";
+import { notificationChannel, type SSEFrame } from "@/lib/sse-events";
 
 type Notification = {
   id: string;
@@ -31,10 +31,12 @@ export function NotificationBell({
   notifications: initialNotifications,
   unreadCount: initialUnreadCount,
   userId,
+  workspaceId,
 }: {
   notifications: Notification[];
   unreadCount: number;
   userId: string;
+  workspaceId: string;
 }) {
   const [open, setOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -53,7 +55,7 @@ export function NotificationBell({
   }
 
   useEventStream({
-    channels: [],
+    channels: [notificationChannel(userId, workspaceId)],
     currentUserId: userId,
     skipOwnEvents: false,
     handlers: {
@@ -94,7 +96,7 @@ export function NotificationBell({
     setLocalNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setLocalUnreadCount(0);
     startTransition(async () => {
-      await markAllAsRead();
+      await markAllAsRead(workspaceId);
     });
   }
 

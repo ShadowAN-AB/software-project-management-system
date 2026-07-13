@@ -23,8 +23,8 @@ export default async function WorkspaceLayout({
   const ctx = await requireWorkspaceMember(workspaceSlug, session.user.id);
 
   const [notifications, unreadCount, workspaces, pendingInvitationsCount] = await Promise.all([
-    getNotifications(),
-    getUnreadCount(),
+    getNotifications(ctx.workspaceId),
+    getUnreadCount(ctx.workspaceId),
     listMyWorkspaces(),
     countMyPendingInvitations(),
   ]);
@@ -34,6 +34,7 @@ export default async function WorkspaceLayout({
       userName={session.user.name}
       userRole={ctx.role}
       userId={session.user.id}
+      workspaceId={ctx.workspaceId}
       workspaceSlug={ctx.workspaceSlug}
       workspaces={workspaces}
       pendingInvitationsCount={pendingInvitationsCount}

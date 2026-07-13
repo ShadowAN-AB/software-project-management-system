@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
     .map((c) => c.trim())
     .filter(Boolean);
 
-  // Always subscribe to the user's personal channel for notifications
-  const userChannel = `user:${session.user.id}`;
-  if (!channels.includes(userChannel)) {
-    channels.push(userChannel);
-  }
+  // Only allow user-scoped channels that address THIS user, so a client can't
+  // eavesdrop on someone else's notifications by guessing a channel name.
+  const userPrefix = `user:${session.user.id}`;
+  const safeChannels = channels.filter(
+    (c) => !c.startsWith("user:") || c === userPrefix || c.startsWith(`${userPrefix}:`)
+  );
 
   const encoder = new TextEncoder();
 
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
     start(controller) {
       const unsubscribes: (() => void)[] = [];
 
-      for (const channel of channels) {
+      for (const channel of safeChannels) {
         const unsub = eventBus.subscribe(channel, (event) => {
           try {
             const data = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;

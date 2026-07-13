@@ -1,4 +1,7 @@
 import { getNotifications } from "@/services/notification-actions";
+import { auth } from "@/lib/auth";
+import { requireWorkspaceMember } from "@/lib/authorization";
+import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Bell } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -14,8 +17,17 @@ const TYPE_COLORS: Record<string, string> = {
   MENTIONED: "bg-rose-500",
 };
 
-export default async function NotificationsPage() {
-  const notifications = await getNotifications();
+export default async function NotificationsPage({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+  const ctx = await requireWorkspaceMember(workspaceSlug, session.user.id);
+
+  const notifications = await getNotifications(ctx.workspaceId);
   const unread = notifications.filter((n) => !n.read);
   const read = notifications.filter((n) => n.read);
 
@@ -30,7 +42,7 @@ export default async function NotificationsPage() {
             {unread.length} unread notification{unread.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {unread.length > 0 && <NotificationActions />}
+        {unread.length > 0 && <NotificationActions workspaceId={ctx.workspaceId} />}
       </div>
 
       {notifications.length === 0 ? (

@@ -1,14 +1,18 @@
 "use client";
 
 import { useTransition } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { markAllAsRead } from "@/services/notification-actions";
 import { Button } from "@/components/ui/button";
 import { CheckCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
 
-export function NotificationActions() {
+export function NotificationActions({ workspaceId }: { workspaceId: string }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  // workspaceId comes from server params; also fall back to route params just
+  // in case a caller renders this without the prop.
+  const params = useParams();
+  const fallbackSlug = params.workspaceSlug as string | undefined;
 
   return (
     <Button
@@ -17,7 +21,9 @@ export function NotificationActions() {
       loading={isPending}
       onClick={() => {
         startTransition(async () => {
-          await markAllAsRead();
+          // Prefer the passed-in workspaceId (resolved server-side against ctx);
+          // the fallback slug is only used if someone renders this in isolation.
+          await markAllAsRead(workspaceId ?? fallbackSlug);
           router.refresh();
         });
       }}
