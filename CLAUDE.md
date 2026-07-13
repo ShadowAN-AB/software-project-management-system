@@ -212,7 +212,7 @@ No third-party UI component library. Everything is custom Tailwind with a zinc c
 ## Deployment
 
 - Set all required env vars from the Environment Variables section.
-- `DATABASE_URL` **must** include `?pgbouncer=true&connection_limit=10&pool_timeout=20` — without `pgbouncer=true`, Prisma will fail at runtime with P1017.
+- `DATABASE_URL` **must** include `?pgbouncer=true&connection_limit=20&pool_timeout=40` — without `pgbouncer=true`, Prisma will fail at runtime with P1017.
 - Set `SUPABASE_SERVICE_ROLE_KEY` as a **server-only** env var (never `NEXT_PUBLIC_*` prefix).
 - Wire `/api/cron/due-reminders` to an external scheduler (Vercel `vercel.json` cron, or equivalent) with header `Authorization: Bearer $CRON_SECRET`. The route returns 503 in prod if `CRON_SECRET` is unset.
 - Run `npm run build` locally against production env before the first deploy — catches AFM font issues, missing envs, and Prisma client mismatches.
