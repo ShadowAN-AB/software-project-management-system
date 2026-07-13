@@ -117,7 +117,7 @@ Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`
 
 15 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Supabase (free tier), connected via the Session pooler on port 5432 (`aws-0-*.pooler.supabase.com`). Both `DATABASE_URL` and `DIRECT_URL` point at the pooler — the direct `db.<project>.supabase.co` endpoint is IPv6-only on free tier and unreachable from most local networks.
 
-**Required query-string params on `DATABASE_URL`:** `?pgbouncer=true&connection_limit=20&pool_timeout=40`. Without `pgbouncer=true`, Prisma caches prepared statements that the pooler doesn't preserve across connections → P1017 "Server has closed the connection". `connection_limit` caps parallel connections since the pooler already multiplexes; `pool_timeout` gives `Promise.all` fan-outs (e.g. dashboard, activity page) enough time to acquire a slot. If you see `P1001 "Can't reach database server"` under load in `npm run dev`, the pool is exhausted — long-lived SSE holds + Turbopack re-renders can starve it at 10/20. Bump these two values before assuming Supabase is down.
+**Required query-string params on `DATABASE_URL`:** `?pgbouncer=true&connection_limit=13&pool_timeout=40`. Without `pgbouncer=true`, Prisma caches prepared statements that the pooler doesn't preserve across connections → P1017 "Server has closed the connection". `connection_limit` caps parallel connections since the pooler already multiplexes; `pool_timeout` gives `Promise.all` fan-outs (e.g. dashboard, activity page) enough time to acquire a slot. If you see `P1001 "Can't reach database server"` under load in `npm run dev`, the pool is exhausted — long-lived SSE holds + Turbopack re-renders can starve it at 10/20. Bump these two values before assuming Supabase is down.
 
 Use `prisma db push` instead of `prisma migrate dev`.
 
@@ -212,7 +212,7 @@ No third-party UI component library. Everything is custom Tailwind with a zinc c
 ## Deployment
 
 - Set all required env vars from the Environment Variables section.
-- `DATABASE_URL` **must** include `?pgbouncer=true&connection_limit=20&pool_timeout=40` — without `pgbouncer=true`, Prisma will fail at runtime with P1017.
+- `DATABASE_URL` **must** include `?pgbouncer=true&connection_limit=13&pool_timeout=40` — without `pgbouncer=true`, Prisma will fail at runtime with P1017.
 - Set `SUPABASE_SERVICE_ROLE_KEY` as a **server-only** env var (never `NEXT_PUBLIC_*` prefix).
 - Wire `/api/cron/due-reminders` to an external scheduler (Vercel `vercel.json` cron, or equivalent) with header `Authorization: Bearer $CRON_SECRET`. The route returns 503 in prod if `CRON_SECRET` is unset.
 - Run `npm run build` locally against production env before the first deploy — catches AFM font issues, missing envs, and Prisma client mismatches.
