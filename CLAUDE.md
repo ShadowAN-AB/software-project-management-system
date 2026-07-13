@@ -31,7 +31,8 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 - `src/app/(dashboard)/w/[workspaceSlug]/layout.tsx` — resolves `WorkspaceContext` via `requireWorkspaceMember(slug, userId)` (React.cache'd), fetches notifications + workspaces, renders `DashboardShell`. All authenticated app pages live under this.
 - `src/app/(dashboard)/onboarding/create-workspace/` — form for creating additional workspaces (also the fallback when a user has zero memberships).
 - `src/app/(dashboard)/invitations/` — stub for M4 cross-workspace invite acceptance.
-- `src/app/api/` — REST routes only: `auth/` (NextAuth), `attachments/` (download), `invite/validate/`, `events/` (SSE), `cron/due-reminders/`, `export/` (CSV) + `export/reports/` (PDF).
+- `src/app/api/` — REST routes only: `auth/` (NextAuth), `attachments/` (download), `invite/validate/`, `invite/[token]/` (bare invite-link landing — routes to `/register?token=…`, `/invitations`, `/invitations?mismatch=1`, or `/login?invite=expired` based on session state), `events/` (SSE), `cron/due-reminders/`, `export/` (CSV) + `export/reports/` (PDF).
+- `src/app/(dashboard)/invitations/` — cross-workspace pending-invitations list, outside `/w/[slug]/`. Server actions `acceptInvitation` / `declineInvitation` inline in the page.
 - `src/proxy.ts` — Next 16 middleware equivalent. Matches `/w/:path*`, syncs `lastWorkspaceSlug` cookie with URL so client-invoked server actions resolve to the current workspace.
 - `src/components/ui/` — Reusable primitives (Button, Card, Input, Badge, Avatar, Markdown) — all custom, no component library.
 - `src/components/features/` — Domain-specific client components (KanbanBoard, GanttChart, TaskDetail, Sidebar, DashboardShell, etc.).
@@ -68,7 +69,7 @@ Next.js 16 App Router with React 19, TypeScript (strict), Tailwind CSS v4, Prism
 
 **Roles:** ADMIN, PROJECT_MANAGER, DEVELOPER, TESTER — all **per-workspace** (via `WorkspaceMember`), not global. Only ADMIN can access `/w/[slug]/admin` and invite users to that workspace. ADMIN of one workspace does NOT grant privileges in any other.
 
-**Public signup.** Anyone can register. New user gets their own workspace + ADMIN role atomically (transaction in `register()`). Invitations (still workspace-scoped, still 32-byte hex + 7-day expiry) are for adding people to an existing workspace — M4 will rewrite the accept flow.
+**Public signup.** Anyone can register. New user gets their own workspace + ADMIN role atomically (transaction in `register()`). `register()` also accepts an optional `token` field from the invite-flow register page: when present + valid + email matches, the new user joins the inviter's workspace with the invited role instead of getting their own auto-workspace (single transaction: user + WorkspaceMember + invitation.usedAt).
 
 ## Multi-tenant workspaces
 
@@ -81,9 +82,17 @@ Every registered user creates their own isolated workspace and becomes its ADMIN
 
 **URL structure:** All app pages live under `/w/[workspaceSlug]/…`. Links to `/tasks/xyz` are broken — always use `/w/${workspaceSlug}/tasks/xyz`. In server components, get the slug from `params: Promise<{ workspaceSlug: string }>`. In client components, `const workspaceSlug = useParams().workspaceSlug as string;`.
 
+**`/w/[slug]/sprints/new` requires `?projectId=…`** — the page reads it from `searchParams` and stuffs it into a hidden field. Landing on the bare URL renders a form that will POST an empty `projectId` and `createSprint` throws `P2003` on `sprints_projectId_fkey`. Only link to it from a project context.
+
 **Signup flow:** `register()` in `auth-actions.ts` runs `prisma.$transaction([user + workspace + WorkspaceMember(ADMIN)])`. Workspace name auto-generated as `"{FirstName}'s Workspace"`, slug sanitized to kebab-case with `-2/-3` dedupe on unique conflict. No invite token, no first-user branch — `getSystemHasUsers`, `bootstrapAdmin`, and `/setup` are all deleted.
 
 **Redirect chain:** Root `/` resolves the user's default workspace and redirects to `/w/{slug}/dashboard`, or to `/onboarding/create-workspace` if the user has no memberships (only reachable after being removed from every workspace).
+
+**Invitations.** Workspace-scoped by design — every `Invitation` row carries `workspaceId`. Two accept paths:
+- **Existing user:** `/invitations` lists pending invites for `session.user.email`. `acceptInvitation(token)` adds a `WorkspaceMember` row with the invited role, marks `usedAt`, calls `invalidateWorkspaceRoleCache`, redirects to `/w/{slug}/dashboard`.
+- **New user:** `register()` accepts an optional hidden `token` field (see "Public signup" below). Joins the inviter's workspace in one transaction, skipping the auto-workspace path.
+
+Bare invite links go through `GET /api/invite/[token]` which routes based on session state (logged out → `/register?token=…`; matching session → `/invitations`; mismatched session → `/invitations?mismatch=1`; bad/expired token → `/login?invite=expired`). The `WorkspaceSwitcher` shows a green badge + "Pending invitations N" dropdown entry when `countMyPendingInvitations() > 0`.
 
 ## Next 16 proxy (was: middleware)
 
@@ -100,13 +109,15 @@ Vitest with mocked Prisma, auth, and Next.js APIs. Config in `vitest.config.mts`
 - Each test file mocks `@/lib/prisma`, `@/lib/auth`, and `@/lib/authorization` with `vi.mock()`
 - Run a single test file: `npx vitest run src/__tests__/auth-actions.test.ts`
 - Current suites: `auth-actions.test.ts`, `admin-actions.test.ts`, `reorder-tasks.test.ts`, `export-reports-route.test.ts`, `lib-ai.test.ts`, `ai-actions-search.test.ts` — 68 tests, all green.
-- When adding a test for a workspace-scoped action, mock `@/lib/authorization` with both `requireProjectMember` (returns true/false) and `resolveDefaultWorkspace` (returns `{ workspaceId, workspaceSlug, role }`). The session mock no longer has `role` — it's `{ user: { id, name, email } }`. Mirror the shape of `reorder-tasks.test.ts` for coverage of `ActionResult` + emitted SSE frame; mirror `admin-actions.test.ts` for anything workspace-scoped that touches `workspaceMember`.
+- When adding a test for a workspace-scoped action, mock `@/lib/authorization` with both `requireProjectMember` (returns true/false) and `resolveDefaultWorkspace` (returns `{ workspaceId, workspaceSlug, role }`). The session mock no longer has `role` — it's `{ user: { id, name, email } }`.
+- Mirror `reorder-tasks.test.ts` for `ActionResult` + emitted SSE frame coverage.
+- Mirror `admin-actions.test.ts` for anything workspace-scoped that touches `workspaceMember` — it sets up `mockCtx = { workspaceId: "w1", workspaceSlug: "acme", role: "ADMIN" }` and shows the shape for `requireAdmin` returning `{ session, ctx }`.
 
 ## Database
 
 15 Prisma models in `prisma/schema.prisma`. PostgreSQL hosted on Supabase (free tier), connected via the Session pooler on port 5432 (`aws-0-*.pooler.supabase.com`). Both `DATABASE_URL` and `DIRECT_URL` point at the pooler — the direct `db.<project>.supabase.co` endpoint is IPv6-only on free tier and unreachable from most local networks.
 
-**Required query-string params on `DATABASE_URL`:** `?pgbouncer=true&connection_limit=10&pool_timeout=20`. Without `pgbouncer=true`, Prisma caches prepared statements that the pooler doesn't preserve across connections → P1017 "Server has closed the connection". `connection_limit=10` caps parallel connections since the pooler already multiplexes; `pool_timeout=20` gives `Promise.all` fan-outs (e.g. dashboard, activity page) enough time to acquire a slot.
+**Required query-string params on `DATABASE_URL`:** `?pgbouncer=true&connection_limit=20&pool_timeout=40`. Without `pgbouncer=true`, Prisma caches prepared statements that the pooler doesn't preserve across connections → P1017 "Server has closed the connection". `connection_limit` caps parallel connections since the pooler already multiplexes; `pool_timeout` gives `Promise.all` fan-outs (e.g. dashboard, activity page) enough time to acquire a slot. If you see `P1001 "Can't reach database server"` under load in `npm run dev`, the pool is exhausted — long-lived SSE holds + Turbopack re-renders can starve it at 10/20. Bump these two values before assuming Supabase is down.
 
 Use `prisma db push` instead of `prisma migrate dev`.
 
@@ -145,13 +156,15 @@ Global dark mode overrides in `globals.css` auto-adapt common utility classes (`
 Server-Sent Events for live updates across browser sessions. Zero external dependencies.
 
 - `src/lib/event-bus.ts` — In-memory pub/sub singleton (same `globalThis` pattern as `prisma.ts`). Channels: `project:{id}`, `user:{userId}`, `task:{id}`, `sprint:{id}`.
-- `src/lib/sse-events.ts` — Typed event definitions (`SSEFrame` = `SSEEvent` + `_actorId`). Includes single-task and bulk events.
-- `src/app/api/events/route.ts` — Authenticated SSE endpoint. Auto-subscribes to `user:{userId}` for notifications. 30s heartbeat.
+- `src/lib/sse-events.ts` — Typed event definitions (`SSEFrame` = `SSEEvent` + `_actorId`) + `notificationChannel(userId, workspaceId)` helper. Kept in a plain module so both client (`NotificationBell`) and server (`notification-actions`) can import it — a `"use server"` file would reject a sync export.
+- `src/app/api/events/route.ts` — Authenticated SSE endpoint. Client passes exact channels; the endpoint filters out any `user:*` channel that doesn't belong to the caller's session id (defense-in-depth against eavesdropping via guessed channel names). 30s heartbeat.
 - `src/hooks/use-event-stream.ts` — Client hook. Exponential backoff reconnection. Filters out own events via `_actorId` to avoid conflicts with optimistic UI.
 
 **Adding a new real-time event**: Define the type in `sse-events.ts`, emit it in the server action via `eventBus.emit()`, handle it in the component via `useEventStream({ handlers })`.
 
 **Key invariant**: Server actions still call `revalidatePath()` for the acting user. SSE provides updates to *other* users. The `_actorId` field prevents double-application.
+
+**Notifications channel is workspace-scoped.** `createNotification` emits SSE on `user:{userId}:workspace:{workspaceId}` via `notificationChannel()`, not bare `user:{userId}`. `NotificationBell` subscribes only to the channel for the workspace the user is currently viewing, so notifications from other workspaces don't bleed into the wrong bell. `getNotifications(workspaceId?)`, `getUnreadCount(workspaceId?)`, and `markAllAsRead(workspaceId?)` all take an optional workspace filter — the workspace layout passes `ctx.workspaceId`; global routes (e.g. `/invitations`) can pass nothing to see everything for the user.
 
 **Exception**: subtask CRUD actions in `subtask-actions.ts` and `decomposeTask` in `ai-actions.ts` skip SSE emit intentionally — subtasks aren't real-time yet. If you add real-time subtasks, add a new `subtask:*` frame in `sse-events.ts` and wire it in `task-checklist.tsx`.
 
@@ -203,6 +216,7 @@ No third-party UI component library. Everything is custom Tailwind with a zinc c
 - Set `SUPABASE_SERVICE_ROLE_KEY` as a **server-only** env var (never `NEXT_PUBLIC_*` prefix).
 - Wire `/api/cron/due-reminders` to an external scheduler (Vercel `vercel.json` cron, or equivalent) with header `Authorization: Bearer $CRON_SECRET`. The route returns 503 in prod if `CRON_SECRET` is unset.
 - Run `npm run build` locally against production env before the first deploy — catches AFM font issues, missing envs, and Prisma client mismatches.
+- Pushes to `main` on GitHub auto-deploy via Vercel. No manual trigger needed. Prod DB schema is synced separately — `prisma db push` only runs when you run it manually against the prod `DATABASE_URL`.
 
 ## Environment Variables
 
