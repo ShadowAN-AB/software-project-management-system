@@ -24,6 +24,7 @@ export function DashboardShell({
   userId,
   workspaceSlug,
   workspaces,
+  pendingInvitationsCount = 0,
   notifications,
   unreadCount,
 }: {
@@ -33,6 +34,7 @@ export function DashboardShell({
   userId: string;
   workspaceSlug: string;
   workspaces: { id: string; slug: string; name: string; role: string }[];
+  pendingInvitationsCount?: number;
   notifications: Notification[];
   unreadCount: number;
 }) {
@@ -48,7 +50,13 @@ export function DashboardShell({
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
-        <Sidebar userName={userName} userRole={userRole} workspaceSlug={workspaceSlug} workspaces={workspaces} />
+        <Sidebar
+          userName={userName}
+          userRole={userRole}
+          workspaceSlug={workspaceSlug}
+          workspaces={workspaces}
+          pendingInvitationsCount={pendingInvitationsCount}
+        />
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -64,6 +72,7 @@ export function DashboardShell({
               userRole={userRole}
               workspaceSlug={workspaceSlug}
               workspaces={workspaces}
+              pendingInvitationsCount={pendingInvitationsCount}
               onNavigate={() => setMobileOpen(false)}
             />
             <button

@@ -1,12 +1,21 @@
 "use client";
 
-import { Suspense, useActionState } from "react";
+import { Suspense, useActionState, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { register } from "@/services/auth-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FolderKanban } from "lucide-react";
 import type { ActionResult } from "@/types";
+
+type InviteInfo = {
+  email: string;
+  role: string;
+  token: string;
+  workspace: { id: string; name: string; slug: string };
+  invitedBy: { name: string };
+};
 
 export default function RegisterPage() {
   return (
@@ -23,10 +32,34 @@ export default function RegisterPage() {
 }
 
 function RegisterForm() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+  const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     register,
     null
   );
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/invite/validate?token=${encodeURIComponent(token)}`);
+      if (cancelled) return;
+      if (!res.ok) {
+        setInviteError("This invitation link is invalid or expired.");
+        return;
+      }
+      const data = (await res.json()) as InviteInfo;
+      setInvite(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const showingInvite = Boolean(token);
 
   return (
     <div className="min-h-screen flex">
@@ -61,11 +94,26 @@ function RegisterForm() {
           </div>
 
           <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
-            Create your account
+            {showingInvite ? "Accept your invitation" : "Create your account"}
           </h1>
           <p className="mt-1.5 text-sm text-zinc-500">
-            We&apos;ll set up a workspace for you as the admin.
+            {invite ? (
+              <>
+                Joining <span className="font-semibold text-zinc-900">{invite.workspace.name}</span>{" "}
+                as {roleLabel(invite.role)}. Invited by {invite.invitedBy.name}.
+              </>
+            ) : showingInvite && !inviteError ? (
+              <>Loading invitation…</>
+            ) : (
+              <>We&apos;ll set up a workspace for you as the admin.</>
+            )}
           </p>
+
+          {inviteError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200/80 rounded-lg text-sm text-red-600">
+              {inviteError}
+            </div>
+          )}
 
           <form action={action} className="mt-6 space-y-5">
             {state && !state.success && (
@@ -73,6 +121,7 @@ function RegisterForm() {
                 {state.error}
               </div>
             )}
+            {token && <input type="hidden" name="token" value={token} />}
 
             <Input id="name" name="name" label="Full name" placeholder="John Doe" required />
             <Input
@@ -81,6 +130,8 @@ function RegisterForm() {
               type="email"
               label="Email"
               placeholder="you@example.com"
+              defaultValue={invite?.email ?? ""}
+              readOnly={Boolean(invite)}
               required
             />
             <Input
@@ -93,15 +144,24 @@ function RegisterForm() {
               required
             />
 
-            <Button type="submit" loading={pending} className="w-full">
-              {pending ? "Creating account…" : "Create account"}
+            <Button
+              type="submit"
+              loading={pending}
+              disabled={showingInvite && !invite}
+              className="w-full"
+            >
+              {pending
+                ? "Creating account…"
+                : showingInvite
+                ? "Accept invitation"
+                : "Create account"}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-zinc-500">
             Already have an account?{" "}
             <Link
-              href="/login"
+              href={token ? `/login?token=${encodeURIComponent(token)}` : "/login"}
               className="font-medium text-zinc-900 hover:text-blue-600 transition-colors"
             >
               Sign in
@@ -111,4 +171,8 @@ function RegisterForm() {
       </div>
     </div>
   );
+}
+
+function roleLabel(role: string): string {
+  return role.replace(/_/g, " ").toLowerCase();
 }

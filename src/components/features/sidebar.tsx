@@ -52,12 +52,14 @@ export function Sidebar({
   userRole,
   workspaceSlug,
   workspaces,
+  pendingInvitationsCount = 0,
   onNavigate,
 }: {
   userName: string;
   userRole: string;
   workspaceSlug: string;
   workspaces: { id: string; slug: string; name: string; role: string }[];
+  pendingInvitationsCount?: number;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -95,7 +97,11 @@ export function Sidebar({
             <FolderKanban className="h-4 w-4 text-zinc-950" strokeWidth={2} />
           </div>
         )}
-        <WorkspaceSwitcher workspaces={workspaces} collapsed={collapsed} />
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          pendingInvitationsCount={pendingInvitationsCount}
+          collapsed={collapsed}
+        />
       </div>
 
       {/* Nav */}

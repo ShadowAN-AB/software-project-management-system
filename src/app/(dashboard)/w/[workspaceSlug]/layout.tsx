@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/features/dashboard-shell";
 import { getNotifications, getUnreadCount } from "@/services/notification-actions";
 import { requireWorkspaceMember } from "@/lib/authorization";
 import { listMyWorkspaces } from "@/services/workspace-actions";
+import { countMyPendingInvitations } from "@/services/invite-actions";
 
 export default async function WorkspaceLayout({
   children,
@@ -21,10 +22,11 @@ export default async function WorkspaceLayout({
   // are not allowed to mutate cookies in Next 16).
   const ctx = await requireWorkspaceMember(workspaceSlug, session.user.id);
 
-  const [notifications, unreadCount, workspaces] = await Promise.all([
+  const [notifications, unreadCount, workspaces, pendingInvitationsCount] = await Promise.all([
     getNotifications(),
     getUnreadCount(),
     listMyWorkspaces(),
+    countMyPendingInvitations(),
   ]);
 
   return (
@@ -34,6 +36,7 @@ export default async function WorkspaceLayout({
       userId={session.user.id}
       workspaceSlug={ctx.workspaceSlug}
       workspaces={workspaces}
+      pendingInvitationsCount={pendingInvitationsCount}
       notifications={notifications}
       unreadCount={unreadCount}
     >

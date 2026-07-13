@@ -1,6 +1,6 @@
 "use server";
 
-import { signIn } from "@/lib/auth";
+import { signIn, invalidateWorkspaceRoleCache } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import bcrypt from "bcryptjs";
@@ -76,26 +76,77 @@ export async function register(
     return { success: false, error: parsed.error.errors[0].message };
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-  });
+  const normalizedEmail = parsed.data.email.trim().toLowerCase();
+  const token = (formData.get("token") as string | null)?.trim() || null;
 
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
     return { success: false, error: "Email already registered" };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+
+  // If the caller carried a live invite token for this email, register them
+  // into the inviting workspace as a member with the invited role — NOT as
+  // the admin of a brand-new workspace.
+  if (token) {
+    const invite = await prisma.invitation.findUnique({
+      where: { token },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        workspaceId: true,
+        usedAt: true,
+        expiresAt: true,
+      },
+    });
+    if (!invite || invite.usedAt || invite.expiresAt < new Date()) {
+      return { success: false, error: "Invalid or expired invitation link" };
+    }
+    if (invite.email !== normalizedEmail) {
+      return {
+        success: false,
+        error: "This invitation was sent to a different email address",
+      };
+    }
+
+    const newUserId = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name: parsed.data.name,
+          email: normalizedEmail,
+          passwordHash,
+        },
+      });
+      await tx.workspaceMember.create({
+        data: {
+          userId: user.id,
+          workspaceId: invite.workspaceId,
+          role: invite.role,
+        },
+      });
+      await tx.invitation.update({
+        where: { id: invite.id },
+        data: { usedAt: new Date() },
+      });
+      return user.id;
+    });
+    invalidateWorkspaceRoleCache(newUserId, invite.workspaceId);
+    redirect("/login?registered=true");
+  }
+
+  // No token → public signup path. New user gets their own workspace as ADMIN.
   const firstName = parsed.data.name.split(/\s+/)[0] ?? parsed.data.name;
   const workspaceName = `${firstName}'s Workspace`;
   const slugBase = sanitizeSlug(`${firstName}s-workspace`);
   const slug = await pickUniqueSlug(slugBase);
 
-  // Atomic: user + workspace + ADMIN membership either all persist or none.
   await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
         name: parsed.data.name,
-        email: parsed.data.email,
+        email: normalizedEmail,
         passwordHash,
       },
     });
